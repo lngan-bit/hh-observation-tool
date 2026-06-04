@@ -1,0 +1,2418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="HH Observation Tool" />
+<meta name="theme-color" content="#EFE6D2" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' fill='%23EFE6D2'/><circle cx='90' cy='90' r='62' fill='none' stroke='%2314110C' stroke-width='3.5'/><g stroke='%2314110C' stroke-width='3.5' stroke-linecap='round'><line x1='90' y1='26' x2='90' y2='38'/><line x1='154' y1='90' x2='142' y2='90'/><line x1='90' y1='154' x2='90' y2='142'/><line x1='26' y1='90' x2='38' y2='90'/></g><line x1='90' y1='90' x2='90' y2='50' stroke='%2314110C' stroke-width='4.5' stroke-linecap='round'/><line x1='90' y1='90' x2='124' y2='90' stroke='%23B73A1F' stroke-width='3.5' stroke-linecap='round'/><circle cx='90' cy='90' r='5.5' fill='%23B73A1F'/></svg>" />
+<title>HH Observation Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,700;1,9..144,300;1,9..144,400&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #EFE6D2;
+    --paper-deep:   #E5DAC0;
+    --paper-edge:   #D8CCAE;
+    --ink:          #14110C;
+    --ink-soft:     #3B342A;
+    --ink-faint:    #7A6F5C;
+    --rule:         #BFB39A;
+    --rule-soft:    #D2C7AE;
+    --vermillion:   #B73A1F;
+    --vermillion-2: #D44A28;
+    --ochre:        #8C6A1F;
+    --serif:        'Fraunces', 'Times New Roman', serif;
+    --mono:         'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html, body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-feature-settings: "ss01", "ss02";
+    min-height: 100vh;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  button, a, .lap-note {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .btn { user-select: none; -webkit-user-select: none; }
+
+  /* paper grain */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: .35;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 0 0.04  0 0 0 .35 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.65'/></svg>");
+  }
+
+  /* warm vignette */
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(20,17,12,0) 60%, rgba(20,17,12,.12) 100%),
+      radial-gradient(120% 80% at 50% 100%, rgba(20,17,12,0) 60%, rgba(20,17,12,.08) 100%);
+  }
+
+  .frame {
+    position: relative;
+    z-index: 1;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding-top:    max(28px, env(safe-area-inset-top));
+    padding-right:  max(36px, env(safe-area-inset-right));
+    padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 36px));
+    padding-left:   max(36px, env(safe-area-inset-left));
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 24px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .masthead::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -4px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .mast-left, .mast-right {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  .mast-right { text-align: right; }
+  .mast-left .label, .mast-right .label { color: var(--ink-faint); }
+  .mast-title {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(38px, 5.4vw, 64px);
+    letter-spacing: -0.02em;
+    line-height: .95;
+    text-align: center;
+    font-variation-settings: "opsz" 144;
+  }
+  .mast-title .amp {
+    font-style: italic;
+    color: var(--vermillion);
+    padding: 0 .1em;
+  }
+  .mast-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* ---------- live clock band ---------- */
+  .clock-band {
+    margin-top: 24px;
+    padding: 22px 0 26px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 28px;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .dial {
+    --size: 96px;
+    width: var(--size);
+    height: var(--size);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .dial svg { width: 100%; height: 100%; display: block; }
+  .dial .face { fill: var(--paper-deep); stroke: var(--ink); stroke-width: 1.2; }
+  .dial .tick { stroke: var(--ink); stroke-width: 1; }
+  .dial .tick-major { stroke-width: 1.6; }
+  .dial .hand-sec {
+    stroke: var(--vermillion);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    transform-origin: 50px 50px;
+    transition: transform .15s cubic-bezier(.2,.8,.2,1);
+  }
+  .dial .pivot { fill: var(--vermillion); }
+  .dial .center-dot { fill: var(--ink); }
+
+  .clock-main {
+    line-height: 1;
+  }
+  .clock-time {
+    font-family: var(--mono);
+    font-weight: 300;
+    font-size: clamp(48px, 7vw, 86px);
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .clock-time .sec {
+    font-size: .5em;
+    color: var(--vermillion);
+    font-weight: 400;
+    letter-spacing: 0;
+    margin-left: 4px;
+  }
+  .clock-time .meridiem {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: .32em;
+    color: var(--ink-soft);
+    margin-left: 10px;
+    letter-spacing: .04em;
+  }
+  .clock-date {
+    margin-top: 10px;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(18px, 2vw, 26px);
+    color: var(--ink-soft);
+  }
+  .clock-date .dot {
+    color: var(--vermillion);
+    padding: 0 6px;
+  }
+
+  .clock-meta {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    line-height: 1.7;
+  }
+  .clock-meta .v { color: var(--ink); font-weight: 500; }
+  .clock-meta .k { color: var(--ink-faint); display: block; font-size: 9px; letter-spacing: .3em; margin-top: 4px; }
+
+  /* ---------- main grid ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+    gap: 0;
+    margin-top: 28px;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    background:
+      linear-gradient(var(--rule), var(--rule)) center / 1px 100% no-repeat;
+  }
+
+  .panel {
+    padding: 28px 30px 32px;
+  }
+  .panel + .panel { /* right column */ }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .panel-title {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+  }
+  .panel-eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- stopwatch ---------- */
+  .sw {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sw-state {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sw-state::before {
+    content: "";
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--ink-faint);
+    border-radius: 50%;
+  }
+  .sw.is-running .sw-state { color: var(--vermillion); }
+  .sw.is-running .sw-state::before {
+    background: var(--vermillion);
+    animation: pulse 1s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .35; transform: scale(.7); }
+  }
+
+  .sw-display {
+    margin: 18px 0 8px;
+    font-family: var(--mono);
+    font-weight: 300;
+    font-size: clamp(46px, 11vw, 132px);
+    line-height: .95;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 0;
+    flex-wrap: nowrap;
+  }
+  .sw-display .cs {
+    font-size: .42em;
+    color: var(--ochre);
+    margin-left: 6px;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  .sw-display .colon { color: var(--ink-faint); padding: 0 .03em; }
+  .sw.is-running .sw-display { color: var(--ink); }
+
+  .sw-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-faint);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+  .sw-meta .v {
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .sw-meta .sep {
+    display: inline-block;
+    width: 1px; height: 10px;
+    background: var(--rule);
+    margin: 0 12px;
+    transform: translateY(1px);
+  }
+
+  /* ---------- controls ---------- */
+  .controls {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 10px;
+  }
+  .btn {
+    appearance: none;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition:
+      background .15s ease,
+      color .15s ease,
+      transform .08s ease,
+      border-color .15s ease;
+    position: relative;
+  }
+  .btn:hover { background: var(--ink); color: var(--paper); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--vermillion); outline-offset: 3px; }
+  .btn[disabled] {
+    color: var(--ink-faint);
+    border-color: var(--rule);
+    background: transparent;
+    cursor: not-allowed;
+  }
+  .btn[disabled]:hover { background: transparent; color: var(--ink-faint); }
+
+  .btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .btn-primary:hover { background: var(--vermillion); border-color: var(--vermillion); color: var(--paper); }
+  .sw.is-running .btn-primary {
+    background: var(--vermillion);
+    border-color: var(--vermillion);
+  }
+  .sw.is-running .btn-primary:hover {
+    background: var(--ink);
+    border-color: var(--ink);
+  }
+
+  .btn-lap[disabled] { opacity: .5; }
+
+  /* ---------- laps ---------- */
+  .laps-wrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 380px;
+  }
+  .laps-head {
+    display: grid;
+    grid-template-columns: 32px 1fr 1fr;
+    gap: 14px;
+    padding: 8px 6px 10px;
+    border-bottom: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .laps {
+    list-style: none;
+    overflow-y: auto;
+    max-height: 520px;
+    padding-right: 4px;
+    margin-right: -4px;
+  }
+  .laps::-webkit-scrollbar { width: 8px; }
+  .laps::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+  .laps::-webkit-scrollbar-track { background: transparent; }
+
+  .lap {
+    padding: 14px 6px 14px;
+    border-bottom: 1px dashed var(--rule-soft);
+    display: grid;
+    grid-template-columns: 32px 1fr 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 14px;
+    row-gap: 8px;
+    animation: lapIn .35s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes lapIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .lap.is-best .lap-split { color: var(--ochre); }
+  .lap.is-worst .lap-split { color: var(--vermillion); }
+  .lap .lap-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+    letter-spacing: .12em;
+    font-variant-numeric: tabular-nums;
+    padding-top: 3px;
+  }
+  .lap-split {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .lap-split .cs {
+    font-size: .65em;
+    color: var(--ink-faint);
+  }
+  .lap-split .label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--ink-faint);
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+    font-weight: 400;
+  }
+  .lap-stamp {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .lap-stamp .label {
+    display: block;
+    font-size: 9px;
+    color: var(--ink-faint);
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .lap-stamp .ms {
+    color: var(--ink-faint);
+    font-size: .82em;
+  }
+  .lap-note-wrap {
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 2px;
+  }
+  .lap-note-wrap::before {
+    content: "“";
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 28px;
+    color: var(--vermillion);
+    line-height: .8;
+    margin-top: 4px;
+  }
+  .lap-note {
+    flex: 1;
+    appearance: none;
+    border: none;
+    border-bottom: 1px solid transparent;
+    background: transparent;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink);
+    padding: 4px 0 5px;
+    resize: none;
+    width: 100%;
+    line-height: 1.4;
+    transition: border-color .15s ease;
+  }
+  .lap-note::placeholder {
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .lap-note:hover { border-bottom-color: var(--rule); }
+  .lap-note:focus {
+    outline: none;
+    border-bottom-color: var(--vermillion);
+  }
+  .lap-delete {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px;
+    letter-spacing: .12em;
+    transition: color .15s ease;
+  }
+  .lap-delete:hover { color: var(--vermillion); }
+
+  .laps-empty {
+    padding: 50px 12px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.45;
+  }
+  .laps-empty .key {
+    display: inline-block;
+    border: 1px solid var(--rule);
+    padding: 1px 8px;
+    margin: 0 2px;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11px;
+    color: var(--ink-soft);
+    letter-spacing: .1em;
+    border-radius: 2px;
+  }
+
+  /* ---------- footer ---------- */
+  .colophon {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .colophon a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 1px;
+    cursor: pointer;
+  }
+  .colophon a:hover { color: var(--vermillion); border-color: var(--vermillion); }
+
+  /* ---------- tabs ---------- */
+  .tabs {
+    display: flex;
+    margin-top: 28px;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .tab {
+    appearance: none;
+    background: transparent;
+    border: none;
+    padding: 16px 28px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: color .15s ease;
+    border-right: 1px solid var(--rule);
+    flex: 1;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab:last-child { border-right: none; }
+  .tab .tab-num {
+    font-size: 9px;
+    letter-spacing: .2em;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+    border: 1px solid var(--rule);
+    padding: 2px 6px;
+    border-radius: 2px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.is-active { color: var(--ink); }
+  .tab.is-active::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--vermillion);
+  }
+  .tab.is-active .tab-num {
+    color: var(--vermillion);
+    border-color: var(--vermillion);
+  }
+
+  .tab-pane { display: none; }
+  .tab-pane.is-active { display: block; }
+
+  /* ---------- observations: session bar ---------- */
+  .session-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: end;
+    gap: 18px;
+    padding: 22px 0 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .session-field { display: flex; flex-direction: column; gap: 6px; }
+  .session-field label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .session-field input {
+    appearance: none;
+    border: none;
+    border-bottom: 1px solid var(--ink);
+    background: transparent;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    color: var(--ink);
+    padding: 4px 0 6px;
+    width: 100%;
+    transition: border-color .15s ease;
+  }
+  .session-field input::placeholder { color: var(--ink-faint); font-style: italic; }
+  .session-field input:focus { outline: none; border-bottom-color: var(--vermillion); }
+  .session-switch { display: flex; align-items: center; gap: 10px; }
+  .session-switch select {
+    appearance: none;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 9px 28px 9px 12px;
+    cursor: pointer;
+    border-radius: 2px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237A6F5C'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  .session-switch .btn-link {
+    appearance: none;
+    background: transparent;
+    border: none;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 4px 0;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--rule);
+    transition: color .15s ease, border-color .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .session-switch .btn-link:hover { color: var(--vermillion); border-color: var(--vermillion); }
+
+  /* ---------- observations: actions ---------- */
+  .obs-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 24px 0 18px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ev-clear {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ev-clear:hover { color: var(--vermillion); border-color: var(--vermillion); }
+  .obs-btn-accent {
+    border-style: dashed;
+    background: transparent;
+    color: var(--ink-soft);
+  }
+  .obs-btn-accent .obs-btn-eyebrow {
+    color: var(--vermillion);
+    font-size: 14px;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+  .obs-btn-accent:hover {
+    background: var(--paper);
+    color: var(--ink);
+    border-color: var(--ink);
+    border-style: solid;
+  }
+  .obs-btn-accent:hover .obs-btn-eyebrow { color: var(--vermillion); }
+  .obs-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 18px 18px;
+    text-align: left;
+    min-height: 84px;
+  }
+  .obs-btn-eyebrow {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .3em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    font-weight: 500;
+    transition: color .15s ease;
+  }
+  .obs-btn-label {
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: .2em;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+  .obs-btn:hover .obs-btn-eyebrow { color: rgba(239, 230, 210, 0.78); }
+  .obs-btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .obs-btn-primary .obs-btn-eyebrow { color: rgba(239, 230, 210, 0.55); }
+  .obs-btn-primary:hover {
+    background: var(--vermillion);
+    border-color: var(--vermillion);
+  }
+  .obs-btn-primary:hover .obs-btn-eyebrow { color: rgba(239, 230, 210, 0.85); }
+
+  .obs-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .obs-bar .btn-link {
+    appearance: none;
+    background: transparent;
+    border: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--rule);
+    transition: color .15s ease, border-color .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .obs-bar .btn-link:hover { color: var(--vermillion); border-color: var(--vermillion); }
+  .obs-status {
+    display: inline-flex;
+    align-items: center;
+  }
+  .obs-status::before {
+    content: "";
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--ink-faint);
+    border-radius: 50%;
+    margin-right: 10px;
+  }
+  .obs-status.is-active { color: var(--ink-soft); }
+  .obs-status.is-active::before {
+    background: var(--vermillion);
+    animation: pulse 1s infinite ease-in-out;
+  }
+  .obs-status .pill {
+    margin-left: 8px;
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: .18em;
+  }
+  .obs-status.is-active .pill { color: var(--vermillion); }
+
+  /* ---------- observations: visits ---------- */
+  .visits-wrap { margin-top: 22px; }
+  /* Compact cards in a responsive grid — 3-4 across on a wide screen, collapsing
+     to fewer columns as the viewport narrows (auto-fill on a min card width). */
+  #visitsList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .visit {
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    animation: visitIn .35s cubic-bezier(.2,.8,.2,1);
+    position: relative;
+  }
+  @keyframes visitIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .visit:not(.is-active) { background: var(--paper-deep); }
+  .visit.is-active { box-shadow: 0 0 0 1px var(--vermillion); }
+
+  .visit-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 3px 10px;
+    padding: 11px 13px 10px;
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .visit-num {
+    grid-column: 1;
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .visit-delete { grid-column: 2; grid-row: 1; }
+  .visit-meta { grid-column: 1 / -1; }
+  .visit-num .small {
+    font-family: var(--mono);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 9px;
+    letter-spacing: .3em;
+    color: var(--ink-faint);
+    margin-left: 10px;
+    text-transform: uppercase;
+    vertical-align: 3px;
+  }
+  .visit.is-active .visit-num .small { color: var(--vermillion); }
+  .visit-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .visit-meta .v {
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    margin-left: 6px;
+  }
+  .visit-delete {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 6px;
+    line-height: 1;
+    transition: color .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .visit-delete:hover { color: var(--vermillion); }
+
+  .toggle-pill {
+    appearance: none;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 4px 11px 4px 9px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .toggle-pill::before {
+    content: "";
+    width: 5px; height: 5px;
+    background: var(--ink-faint);
+    border-radius: 50%;
+    transition: background .15s ease;
+  }
+  .toggle-pill:hover { border-color: var(--ink); color: var(--ink); }
+  .toggle-pill[data-state="inside"] {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .toggle-pill[data-state="inside"]::before { background: var(--vermillion); }
+  .toggle-pill[data-state="inside"]:hover {
+    background: var(--vermillion);
+    border-color: var(--vermillion);
+  }
+
+  .visit-events {
+    padding: 8px 13px 12px;
+  }
+  .events-head {
+    display: grid;
+    grid-template-columns: 110px 110px 1fr;
+    gap: 14px;
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .event-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--rule-soft);
+    animation: lapIn .25s cubic-bezier(.2,.8,.2,1);
+  }
+  .events-list .event-row:last-child { border-bottom: none; }
+  .event-row[data-kind="washIn"],
+  .event-row[data-kind="washOut"] {
+    background: linear-gradient(to right, rgba(183, 58, 31, 0.05), transparent 38%);
+  }
+  /* compact single-line row: label (fixed) · time · controls pushed right (wrap) */
+  .ev-main {
+    display: flex;
+    align-items: center;
+    gap: 6px 10px;
+    flex-wrap: wrap;
+    min-height: 26px;
+  }
+  .ev-time {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .ev-time.is-empty {
+    color: var(--ink-faint);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+  .ev-label {
+    width: 54px;
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .event-row[data-kind="washIn"] .ev-label,
+  .event-row[data-kind="washOut"] .ev-label {
+    color: var(--vermillion);
+  }
+  .ev-detail {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;          /* push toggle / reuse / clear to the right edge */
+  }
+  /* small inline pill button on a card (clear) */
+  .ev-clear {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ev-clear:hover { color: var(--vermillion); border-color: var(--vermillion); }
+
+  /* inline note, saves on every keystroke */
+  .ev-note-wrap { padding-left: 0; }
+  .ev-note {
+    appearance: none;
+    border: none;
+    border-bottom: 1px solid var(--rule-soft);
+    background: transparent;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink);
+    padding: 2px 0 4px;
+    width: 100%;
+    line-height: 1.35;
+    transition: border-color .15s ease;
+  }
+  .ev-note::placeholder { color: var(--ink-faint); font-style: italic; }
+  .ev-note:hover { border-bottom-color: var(--rule); }
+  .ev-note:focus { outline: none; border-bottom-color: var(--vermillion); }
+
+  /* staff tag row under the card header */
+  .visit-staff {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 13px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper);
+  }
+  .visit-staff label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .visit-staff input {
+    flex: 1;
+    appearance: none;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    background: transparent;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink);
+    padding: 3px 0 4px;
+  }
+  .visit-staff input::placeholder { color: var(--ink-faint); font-style: italic; }
+  .visit-staff input:focus { outline: none; border-bottom-color: var(--vermillion); }
+
+
+  /* live compliance stats band */
+  .obs-stats {
+    display: flex;
+    align-items: flex-end;
+    gap: 36px;
+    padding: 16px 0 4px;
+  }
+  .stat { display: flex; flex-direction: column; gap: 5px; }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .stat-value {
+    font-family: var(--mono);
+    font-weight: 300;
+    font-size: 40px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-value-sm { font-size: 18px; font-weight: 400; color: var(--ink-soft); }
+  .stat-input { margin-left: auto; }
+  .stat-input input {
+    appearance: none;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--ink);
+    padding: 7px 10px;
+    width: 84px;
+    border-radius: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-input input:focus { outline: none; border-color: var(--vermillion); }
+
+  /* 'short' badge on excluded opportunities */
+  .short-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--ochre);
+    border: 1px solid var(--ochre);
+    border-radius: 2px;
+    padding: 2px 7px;
+    margin-left: 10px;
+    vertical-align: 3px;
+  }
+  .visit.is-short:not(.is-active) { opacity: .62; }
+
+  /* per-opportunity wash count + score, shown on each card header */
+  .visit-score {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .visit-score .pct {
+    color: var(--ink-soft);
+    font-weight: 500;
+    letter-spacing: 0;
+    margin-left: 6px;
+  }
+  .visit-score.full .pct { color: var(--ochre); }
+
+  /* one-tap reuse button on a card's wash row — credits the wash by copying the
+     most recent prior wash time of the same type (no manual picking). */
+  .ev-reuse {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--vermillion);
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--vermillion);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: color .15s ease, background .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ev-reuse:hover { background: var(--vermillion); color: var(--paper); }
+
+  /* persistent marker shown on a wash that was credited via reuse */
+  .reused-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--vermillion);
+    border: 1px solid var(--vermillion);
+    border-radius: 999px;
+    padding: 4px 11px;
+    background: rgba(183, 58, 31, 0.06);
+  }
+  .reused-tag::before {
+    content: "↻";
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .visits-empty {
+    padding: 50px 12px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  .visits-empty .key {
+    display: inline-block;
+    border: 1px solid var(--rule);
+    padding: 1px 8px;
+    margin: 0 2px;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11px;
+    color: var(--ink-soft);
+    letter-spacing: .14em;
+    border-radius: 2px;
+  }
+
+  /* observation-specific responsive */
+  @media (max-width: 1100px) {
+    .obs-actions { grid-template-columns: repeat(4, 1fr); }
+    #btnEnterRoom { grid-column: 1 / -1; }
+  }
+  @media (max-width: 880px) {
+    .obs-actions { grid-template-columns: repeat(2, 1fr); }
+    #btnEnterRoom { grid-column: 1 / -1; }
+    .session-bar { grid-template-columns: 1fr 1fr; }
+    .session-switch { grid-column: 1 / -1; justify-content: flex-start; }
+  }
+
+  @media (max-width: 480px) {
+    .tab { padding: 14px 10px; gap: 10px; font-size: 10px; letter-spacing: .18em; }
+    .tab .tab-num { font-size: 8px; padding: 2px 4px; letter-spacing: .16em; }
+
+    .obs-actions { grid-template-columns: repeat(2, 1fr); padding: 18px 0 14px; gap: 8px; }
+    .session-bar { grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 0 14px; }
+    .session-field input { font-size: 17px; }
+    .obs-btn { padding: 14px 12px; min-height: 70px; }
+    .obs-btn-label { font-size: 12px; letter-spacing: .14em; }
+    .obs-btn-eyebrow { font-size: 8px; letter-spacing: .22em; }
+    .obs-btn-accent .obs-btn-eyebrow { font-size: 13px; }
+
+    .obs-bar { flex-direction: column; gap: 10px; align-items: flex-start; padding: 12px 0; }
+    .obs-stats { gap: 20px; flex-wrap: wrap; }
+    .stat-value { font-size: 32px; }
+    .stat-input { margin-left: 0; }
+
+    .visit-num .small { font-size: 8px; margin-left: 8px; letter-spacing: .24em; }
+    .visits-empty { padding: 36px 12px; font-size: 15px; }
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 880px) {
+    .frame {
+      padding-top:    max(22px, env(safe-area-inset-top));
+      padding-right:  max(20px, env(safe-area-inset-right));
+      padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 24px));
+      padding-left:   max(20px, env(safe-area-inset-left));
+    }
+    .masthead { grid-template-columns: 1fr; text-align: center; gap: 10px; }
+    .mast-left, .mast-right { text-align: center; }
+    .clock-band { grid-template-columns: 1fr; text-align: center; gap: 14px; padding: 18px 0 22px; }
+    .clock-time { justify-content: center; }
+    .clock-meta { text-align: center; }
+    .dial { margin: 0 auto; }
+    .layout {
+      grid-template-columns: 1fr;
+      background: none;
+    }
+    .panel { padding: 22px 4px; }
+    .panel + .panel { border-top: 1px solid var(--rule); }
+    .controls { grid-template-columns: 1fr; gap: 12px; }
+    .btn { padding: 18px 16px; font-size: 13px; }
+  }
+
+  @media (max-width: 480px) {
+    .mast-title { font-size: clamp(32px, 9vw, 44px); }
+    .mast-sub { font-size: 9px; letter-spacing: .26em; }
+    .mast-left, .mast-right { font-size: 10px; }
+
+    .clock-time { font-size: clamp(44px, 13vw, 64px); }
+    .clock-time .sec { font-size: .42em; }
+    .clock-date { font-size: 17px; }
+    .clock-meta { font-size: 10px; letter-spacing: .12em; }
+
+    .panel-title { font-size: 20px; }
+    .panel-eyebrow { font-size: 9px; letter-spacing: .22em; }
+
+    .sw-display { font-size: clamp(42px, 13.5vw, 80px); margin: 14px 0 6px; }
+    .sw-meta { font-size: 10px; letter-spacing: .1em; }
+    .sw-meta .sep { margin: 0 8px; }
+
+    /* restructure lap rows for narrow screens */
+    .lap {
+      grid-template-columns: 26px 1fr;
+      grid-template-rows: auto auto auto;
+      column-gap: 10px;
+      row-gap: 6px;
+    }
+    .lap .lap-num { grid-column: 1; grid-row: 1 / span 2; }
+    .lap-split    { grid-column: 2; grid-row: 1; font-size: 17px; }
+    .lap-stamp    { grid-column: 2; grid-row: 2; font-size: 12px; }
+    .lap-note-wrap { grid-column: 1 / -1; }
+
+    .laps-head { grid-template-columns: 26px 1fr 1fr; font-size: 9px; letter-spacing: .2em; }
+    .laps { max-height: none; }
+
+    .colophon { flex-direction: column; gap: 8px; text-align: center; font-size: 9px; }
+  }
+
+  /* iOS standalone PWA — soften the top so it doesn't crash into the status bar */
+  @media (display-mode: standalone) {
+    .frame { padding-top: max(36px, calc(env(safe-area-inset-top) + 8px)); }
+  }
+
+  /* selection */
+  ::selection { background: var(--vermillion); color: var(--paper); }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- ============ MASTHEAD ============ -->
+  <header class="masthead">
+    <div class="mast-left">
+      <div><span class="label">Session No.</span> <span id="sessionId">—</span></div>
+      <div><span class="label">Began</span> <span id="sessionBegan">—</span></div>
+    </div>
+    <div>
+      <h1 class="mast-title">Chronograph<span class="amp"> &amp; </span>Log</h1>
+      <div class="mast-sub">A Precision Time Journal</div>
+    </div>
+    <div class="mast-right">
+      <div><span class="label">Locale</span> <span id="locale">—</span></div>
+      <div><span class="label">Zone</span> <span id="zone">—</span></div>
+    </div>
+  </header>
+
+  <!-- ============ LIVE CLOCK ============ -->
+  <section class="clock-band" aria-label="Current date and time">
+    <div class="dial" aria-hidden="true">
+      <svg viewBox="0 0 100 100">
+        <circle class="face" cx="50" cy="50" r="46"/>
+        <g id="ticks"></g>
+        <line class="hand-sec" id="handSec" x1="50" y1="50" x2="50" y2="14"/>
+        <circle class="pivot" cx="50" cy="50" r="2.2"/>
+        <circle class="center-dot" cx="50" cy="50" r=".9"/>
+      </svg>
+    </div>
+    <div class="clock-main">
+      <div class="clock-time" aria-live="polite">
+        <span id="clockHM">00:00</span><span class="sec" id="clockS">00</span><span class="meridiem" id="clockMer"></span>
+      </div>
+      <div class="clock-date" id="clockDate">—</div>
+    </div>
+    <div class="clock-meta">
+      <div><span class="v" id="clockEpoch">—</span><span class="k">Unix Time</span></div>
+      <div><span class="v" id="clockOffset">—</span><span class="k">UTC Offset</span></div>
+      <div><span class="v" id="clockISO">—</span><span class="k">ISO 8601</span></div>
+    </div>
+  </section>
+
+  <!-- ============ TABS ============ -->
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab is-active" role="tab" data-tab="observations" type="button">
+      <span class="tab-num">01</span>
+      <span class="tab-label">Field Log</span>
+    </button>
+    <button class="tab" role="tab" data-tab="chronograph" type="button">
+      <span class="tab-num">02</span>
+      <span class="tab-label">Chronograph</span>
+    </button>
+  </nav>
+
+  <!-- ============ OBSERVATIONS (PRIMARY) ============ -->
+  <section class="tab-pane is-active" data-pane="observations" role="tabpanel">
+
+    <div class="session-bar">
+      <div class="session-field">
+        <label for="sessDay">Day</label>
+        <input id="sessDay" type="text" placeholder="e.g. Jun 4, 2026" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="session-field">
+        <label for="sessUnit">Unit</label>
+        <input id="sessUnit" type="text" placeholder="e.g. 5 West ICU" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="session-switch">
+        <select id="sessSelect" aria-label="Switch session"></select>
+        <button class="btn-link" id="btnNewSession" type="button">+ New session</button>
+      </div>
+    </div>
+
+    <div class="obs-actions">
+      <button class="btn obs-btn obs-btn-primary" id="btnEnterRoom" type="button">
+        <span class="obs-btn-eyebrow">＋ New opportunity</span>
+        <span class="obs-btn-label">Enter Room</span>
+      </button>
+      <button class="btn obs-btn" id="btnWashIn" type="button">
+        <span class="obs-btn-eyebrow">Active opp</span>
+        <span class="obs-btn-label">Wash In</span>
+      </button>
+      <button class="btn obs-btn" id="btnWashOut" type="button">
+        <span class="obs-btn-eyebrow">Active opp</span>
+        <span class="obs-btn-label">Wash Out</span>
+      </button>
+      <button class="btn obs-btn" id="btnExit" type="button">
+        <span class="obs-btn-eyebrow">Active opp</span>
+        <span class="obs-btn-label">Exit</span>
+      </button>
+    </div>
+
+    <div class="obs-bar">
+      <span class="obs-status" id="obsStatus">No active opportunity</span>
+    </div>
+
+    <!-- Live compliance for the active session. Score per opportunity: two washes = 100%,
+         one wash = 50%, no washes = 0%. Opportunities shorter than the min visit duration
+         are excluded and tagged 'short'. Rate = mean score over the non-short opportunities. -->
+    <div class="obs-stats">
+      <div class="stat">
+        <span class="stat-label">Session compliance</span>
+        <span class="stat-value" id="complianceValue">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Scored · short</span>
+        <span class="stat-value stat-value-sm" id="complianceBreakdown">—</span>
+      </div>
+      <div class="stat stat-input">
+        <label for="minVisit">Min visit (sec)</label>
+        <input id="minVisit" type="number" min="0" step="1" value="120" inputmode="numeric" />
+      </div>
+    </div>
+
+    <!-- Staff tags entered so far — powers reuse-by-autocomplete on the staff field -->
+    <datalist id="staffTagList"></datalist>
+
+    <div class="visits-wrap">
+      <div id="visitsList"></div>
+      <div class="visits-empty" id="visitsEmpty">
+        No opportunities yet.<br>
+        Tap <span class="key">Enter Room</span> when you see someone enter — each entry starts an opportunity.
+      </div>
+    </div>
+
+    <footer class="colophon">
+      <div>Local · Persistent · Single-File</div>
+      <div><a id="exportVisitsBtn">Export CSV ↓</a> · <a id="clearVisitsBtn">Clear opportunities</a></div>
+    </footer>
+  </section>
+
+  <!-- ============ CHRONOGRAPH (SECONDARY) ============ -->
+  <section class="tab-pane" data-pane="chronograph" role="tabpanel">
+    <div class="layout">
+
+      <!-- STOPWATCH -->
+      <section class="panel" id="sw" class="sw">
+        <div class="panel-head">
+          <h2 class="panel-title">Stopwatch</h2>
+          <span class="panel-eyebrow">Press · Start · Lap · Reset</span>
+        </div>
+
+        <div class="sw" id="swInner">
+          <div class="sw-state" id="swState">Idle</div>
+          <div class="sw-display" aria-live="off">
+            <span id="swH">00</span><span class="colon">:</span><span id="swM">00</span><span class="colon">:</span><span id="swS">00</span><span class="cs" id="swCs">.00</span>
+          </div>
+          <div class="sw-meta">
+            <span class="label">Started</span> <span class="v" id="swStarted">—</span>
+            <span class="sep"></span>
+            <span class="label">Laps</span> <span class="v" id="swLapCount">0</span>
+          </div>
+          <div class="controls">
+            <button class="btn btn-primary" id="btnStart" type="button">Start</button>
+            <button class="btn btn-lap"     id="btnLap"   type="button" disabled>Lap</button>
+            <button class="btn"             id="btnReset" type="button" disabled>Reset</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- LAPS LOG -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Lap Log</h2>
+          <span class="panel-eyebrow">Each lap timestamped</span>
+        </div>
+
+        <div class="laps-wrap">
+          <div class="laps-head">
+            <span>#</span>
+            <span>Split / Total</span>
+            <span>Logged at</span>
+          </div>
+          <ul class="laps" id="lapsList"></ul>
+          <div class="laps-empty" id="lapsEmpty">
+            No laps recorded yet. <br>
+            Press <span class="key">Space</span> to start, <span class="key">L</span> to mark a lap.
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="colophon">
+      <div>Local · Persistent · Single-File</div>
+      <div><a id="exportBtn">Export CSV ↓</a> · <a id="clearAllBtn">Clear log</a></div>
+    </footer>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ===== Utilities =====
+  const $ = (id) => document.getElementById(id);
+  const pad = (n, w = 2) => String(n).padStart(w, '0');
+
+  const fmtSW = (ms) => {
+    const totalCs = Math.floor(ms / 10);
+    const cs = totalCs % 100;
+    const totalS = Math.floor(totalCs / 100);
+    const s = totalS % 60;
+    const totalM = Math.floor(totalS / 60);
+    const m = totalM % 60;
+    const h = Math.floor(totalM / 60);
+    return { h: pad(h), m: pad(m), s: pad(s), cs: pad(cs) };
+  };
+
+  const fmtClockTime = (d) => {
+    // 12-hour with AM/PM, seconds shown separately
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const s = d.getSeconds();
+    const mer = h >= 12 ? 'pm' : 'am';
+    h = h % 12 || 12;
+    return { hm: `${pad(h)}:${pad(m)}`, s: pad(s), mer };
+  };
+
+  const fmtDateLong = (d) => {
+    const weekday = d.toLocaleDateString(undefined, { weekday: 'long' });
+    const month   = d.toLocaleDateString(undefined, { month: 'long' });
+    const day     = d.getDate();
+    const year    = d.getFullYear();
+    return `${weekday} <span class="dot">·</span> ${month} ${day}, ${year}`;
+  };
+
+  const fmtStampShort = (d) => {
+    // e.g. 14:32:18.421
+    const h = pad(d.getHours());
+    const m = pad(d.getMinutes());
+    const s = pad(d.getSeconds());
+    const ms = pad(d.getMilliseconds(), 3);
+    return `${h}:${m}:${s}<span class="ms">.${ms}</span>`;
+  };
+
+  const fmtStampDate = (d) => {
+    const y = d.getFullYear();
+    const mo = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    return `${y}-${mo}-${dd}`;
+  };
+
+  const offsetString = (d) => {
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? '+' : '−';
+    const abs = Math.abs(off);
+    const hh = pad(Math.floor(abs / 60));
+    const mm = pad(abs % 60);
+    return `UTC${sign}${hh}:${mm}`;
+  };
+
+  // ===== Dial ticks (drawn once) =====
+  (() => {
+    const ticks = $('ticks');
+    let svg = '';
+    for (let i = 0; i < 60; i++) {
+      const major = i % 5 === 0;
+      const angle = (i * 6) * Math.PI / 180;
+      const r1 = 46;
+      const r2 = major ? 40 : 43.5;
+      const x1 = 50 + r1 * Math.sin(angle);
+      const y1 = 50 - r1 * Math.cos(angle);
+      const x2 = 50 + r2 * Math.sin(angle);
+      const y2 = 50 - r2 * Math.cos(angle);
+      svg += `<line class="tick ${major ? 'tick-major' : ''}" x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}"/>`;
+    }
+    ticks.innerHTML = svg;
+  })();
+
+  // ===== Live clock =====
+  const handSec = $('handSec');
+  const clockHM = $('clockHM');
+  const clockS  = $('clockS');
+  const clockMer = $('clockMer');
+  const clockDate = $('clockDate');
+  const clockEpoch = $('clockEpoch');
+  const clockOffset = $('clockOffset');
+  const clockISO = $('clockISO');
+
+  const tickClock = () => {
+    const d = new Date();
+    const { hm, s, mer } = fmtClockTime(d);
+    clockHM.textContent = hm;
+    clockS.textContent  = s;
+    clockMer.textContent = mer;
+    clockDate.innerHTML = fmtDateLong(d);
+    clockEpoch.textContent = Math.floor(d.getTime() / 1000).toLocaleString();
+    clockOffset.textContent = offsetString(d);
+    clockISO.textContent = d.toISOString().replace('T', ' ').slice(0, 19) + 'Z';
+    const secs = d.getSeconds() + d.getMilliseconds() / 1000;
+    handSec.style.transform = `rotate(${secs * 6}deg)`;
+  };
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // Locale / zone in masthead
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const loc  = Intl.DateTimeFormat().resolvedOptions().locale;
+    $('zone').textContent = zone || '—';
+    $('locale').textContent = loc || '—';
+  } catch { /* no-op */ }
+
+  // ===== Session info =====
+  const STORAGE_KEY = 'chronograph.v1';
+  const sessionStart = new Date();
+  $('sessionBegan').textContent =
+    `${fmtStampDate(sessionStart)} · ${pad(sessionStart.getHours())}:${pad(sessionStart.getMinutes())}:${pad(sessionStart.getSeconds())}`;
+  $('sessionId').textContent =
+    'CG-' + sessionStart.getFullYear().toString().slice(-2)
+          + pad(sessionStart.getMonth() + 1)
+          + pad(sessionStart.getDate()) + '-'
+          + pad(sessionStart.getHours()) + pad(sessionStart.getMinutes());
+
+  // ===== Stopwatch state =====
+  const state = {
+    running: false,
+    startEpoch: 0,    // wall-clock ms when the current run segment started
+    accumulated: 0,   // ms accumulated from previous segments (pre-pause)
+    startedAt: null,  // Date object — first time start was pressed in this session
+    laps: [],         // { id, totalMs, splitMs, atEpoch, note }
+  };
+
+  // ===== Persistence =====
+  const load = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.laps)) state.laps = data.laps;
+      if (data.accumulated) state.accumulated = data.accumulated;
+      if (data.startedAt) state.startedAt = new Date(data.startedAt);
+    } catch { /* ignore */ }
+  };
+  const save = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        laps: state.laps,
+        accumulated: state.accumulated,
+        startedAt: state.startedAt ? state.startedAt.toISOString() : null,
+      }));
+    } catch { /* ignore */ }
+  };
+
+  // ===== Stopwatch display =====
+  const swH = $('swH'), swM = $('swM'), swS = $('swS'), swCs = $('swCs');
+  const swStarted = $('swStarted');
+  const swLapCount = $('swLapCount');
+  const swState = $('swState');
+  const swPanel = $('swInner');
+  const btnStart = $('btnStart');
+  const btnLap = $('btnLap');
+  const btnReset = $('btnReset');
+
+  const elapsed = () => state.running
+    ? state.accumulated + (performance.now() - state.startEpoch)
+    : state.accumulated;
+
+  const renderSW = () => {
+    const t = fmtSW(elapsed());
+    swH.textContent = t.h;
+    swM.textContent = t.m;
+    swS.textContent = t.s;
+    swCs.textContent = '.' + t.cs;
+  };
+
+  let rafId = null;
+  const loop = () => {
+    renderSW();
+    rafId = requestAnimationFrame(loop);
+  };
+  const startLoop = () => { if (!rafId) loop(); };
+  const stopLoop = () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } };
+
+  const setMode = () => {
+    swPanel.classList.toggle('is-running', state.running);
+    swState.textContent = state.running
+      ? 'Recording'
+      : (state.accumulated > 0 ? 'Paused' : 'Idle');
+    btnStart.textContent = state.running ? 'Pause' : (state.accumulated > 0 ? 'Resume' : 'Start');
+    btnLap.disabled = !state.running;
+    btnReset.disabled = state.running || (state.accumulated === 0 && state.laps.length === 0);
+    swLapCount.textContent = state.laps.length;
+    swStarted.textContent = state.startedAt
+      ? `${fmtStampDate(state.startedAt)} · ${pad(state.startedAt.getHours())}:${pad(state.startedAt.getMinutes())}:${pad(state.startedAt.getSeconds())}`
+      : '—';
+  };
+
+  // ===== Lap rendering =====
+  const lapsList = $('lapsList');
+  const lapsEmpty = $('lapsEmpty');
+
+  const computeExtremes = () => {
+    if (state.laps.length < 2) return { best: null, worst: null };
+    let best = state.laps[0].splitMs, worst = state.laps[0].splitMs;
+    for (const l of state.laps) {
+      if (l.splitMs < best)  best = l.splitMs;
+      if (l.splitMs > worst) worst = l.splitMs;
+    }
+    return { best, worst };
+  };
+
+  const lapNode = (lap, idx, extremes) => {
+    const li = document.createElement('li');
+    li.className = 'lap';
+    li.dataset.id = lap.id;
+    const split = fmtSW(lap.splitMs);
+    const total = fmtSW(lap.totalMs);
+    const stamp = new Date(lap.atEpoch);
+
+    if (extremes.best !== null) {
+      if (lap.splitMs === extremes.best)  li.classList.add('is-best');
+      if (lap.splitMs === extremes.worst) li.classList.add('is-worst');
+    }
+
+    li.innerHTML = `
+      <span class="lap-num">${pad(idx + 1)}</span>
+      <span class="lap-split">
+        <span class="label">Split / Total</span>
+        ${split.h !== '00' ? split.h + ':' : ''}${split.m}:${split.s}<span class="cs">.${split.cs}</span>
+        &nbsp;<span style="color:var(--ink-faint)">/</span>&nbsp;
+        ${total.h !== '00' ? total.h + ':' : ''}${total.m}:${total.s}<span class="cs">.${total.cs}</span>
+      </span>
+      <span class="lap-stamp">
+        <span class="label">${fmtStampDate(stamp)}</span>
+        ${fmtStampShort(stamp)}
+      </span>
+      <div class="lap-note-wrap">
+        <textarea class="lap-note" rows="1" placeholder="Note for this lap…">${(lap.note || '').replace(/</g,'&lt;')}</textarea>
+        <button class="lap-delete" type="button" title="Delete lap">×</button>
+      </div>
+    `;
+    // auto-grow textarea
+    const ta = li.querySelector('.lap-note');
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+    requestAnimationFrame(grow);
+    ta.addEventListener('input', () => {
+      lap.note = ta.value;
+      save();
+      grow();
+    });
+    li.querySelector('.lap-delete').addEventListener('click', () => {
+      state.laps = state.laps.filter(l => l.id !== lap.id);
+      save();
+      renderLaps();
+      setMode();
+    });
+    return li;
+  };
+
+  const renderLaps = () => {
+    lapsList.innerHTML = '';
+    const extremes = computeExtremes();
+    // newest at top
+    [...state.laps].reverse().forEach((lap, i) => {
+      const idx = state.laps.length - 1 - i;
+      lapsList.appendChild(lapNode(lap, idx, extremes));
+    });
+    lapsEmpty.style.display = state.laps.length === 0 ? '' : 'none';
+  };
+
+  // ===== Actions =====
+  const start = () => {
+    if (state.running) return;
+    state.running = true;
+    state.startEpoch = performance.now();
+    if (!state.startedAt) state.startedAt = new Date();
+    setMode();
+    startLoop();
+    save();
+  };
+  const pause = () => {
+    if (!state.running) return;
+    state.accumulated += performance.now() - state.startEpoch;
+    state.running = false;
+    setMode();
+    stopLoop();
+    renderSW();
+    save();
+  };
+  const toggle = () => state.running ? pause() : start();
+
+  const lap = () => {
+    if (!state.running) return;
+    const totalMs = elapsed();
+    const prevTotal = state.laps.length ? state.laps[state.laps.length - 1].totalMs : 0;
+    const splitMs = totalMs - prevTotal;
+    state.laps.push({
+      id: 'lap_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      totalMs, splitMs,
+      atEpoch: Date.now(),
+      note: '',
+    });
+    save();
+    renderLaps();
+    setMode();
+    // focus the new lap's note (it's at the top after reverse)
+    const firstNote = lapsList.querySelector('.lap .lap-note');
+    if (firstNote) firstNote.focus();
+  };
+
+  const reset = () => {
+    if (state.running) return;
+    if (state.laps.length === 0 && state.accumulated === 0) return;
+    if (!confirm('Reset stopwatch and clear all laps?')) return;
+    state.accumulated = 0;
+    state.startEpoch = 0;
+    state.startedAt = null;
+    state.laps = [];
+    save();
+    renderSW();
+    renderLaps();
+    setMode();
+  };
+
+  // ===== Wiring =====
+  btnStart.addEventListener('click', toggle);
+  btnLap.addEventListener('click', lap);
+  btnReset.addEventListener('click', reset);
+
+  document.addEventListener('keydown', (e) => {
+    const target = e.target;
+    const inField = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+    if (inField) return;
+    if (e.code === 'Space') { e.preventDefault(); toggle(); }
+    else if (e.key === 'l' || e.key === 'L') { if (state.running) { e.preventDefault(); lap(); } }
+    else if (e.key === 'r' || e.key === 'R') { if (!state.running) { e.preventDefault(); reset(); } }
+  });
+
+  // ===== Export =====
+  $('exportBtn').addEventListener('click', () => {
+    const rows = [['#','split_ms','total_ms','logged_iso','note']];
+    state.laps.forEach((l, i) => {
+      rows.push([
+        i + 1,
+        l.splitMs,
+        l.totalMs,
+        new Date(l.atEpoch).toISOString(),
+        '"' + (l.note || '').replace(/"/g, '""') + '"',
+      ]);
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = fmtStampDate(new Date()) + '_' + pad(new Date().getHours()) + pad(new Date().getMinutes());
+    a.href = url;
+    a.download = `chronograph_${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  });
+
+  $('clearAllBtn').addEventListener('click', () => {
+    if (state.running) { alert('Pause the stopwatch first.'); return; }
+    if (!confirm('Clear all laps and reset the stopwatch?')) return;
+    state.accumulated = 0;
+    state.startedAt = null;
+    state.laps = [];
+    save();
+    renderSW();
+    renderLaps();
+    setMode();
+  });
+
+  // ===== Tab switching =====
+  const TAB_KEY = 'chronograph.v1.tab';
+  const tabEls = document.querySelectorAll('.tab');
+  const paneEls = document.querySelectorAll('.tab-pane');
+  const setTab = (name) => {
+    tabEls.forEach(t => {
+      const active = t.dataset.tab === name;
+      t.classList.toggle('is-active', active);
+      t.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    paneEls.forEach(p => p.classList.toggle('is-active', p.dataset.pane === name));
+    try { localStorage.setItem(TAB_KEY, name); } catch { /* ignore */ }
+  };
+  tabEls.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+  let savedTab = null;
+  try { savedTab = localStorage.getItem(TAB_KEY); } catch { /* ignore */ }
+  setTab(savedTab === 'chronograph' ? 'chronograph' : 'observations');
+
+  // ===== Observations: Sessions & Opportunities =====
+  // MODEL (REAL — this is the intended interaction):
+  //   A SESSION is one day of observing on one unit. Both Day and Unit are typed
+  //   free-text by the observer (no validation — they may write "Tue AM" or a date).
+  //   Within a session, each tap of ENTER ROOM creates an OPPORTUNITY and makes it
+  //   the active opportunity. The active opportunity receives Wash In / Wash Out /
+  //   Exit timestamps. Tapping any card makes it active; if the observer never taps
+  //   a different card, the active opportunity stays the most recently created one.
+  // DECISION: Entry == opportunity creation, so each opportunity is a single room
+  //   visit (supersedes the earlier multi-row visit model). Each wash carries an
+  //   inside/outside-room location toggle; each event (entry/wash-in/wash-out/exit)
+  //   carries its own free-text note; the opportunity carries a free-text staff tag.
+  //   See docs/DECISIONS.md.
+  const SESS_KEY = 'hhobs.v2.sessions';
+  const DEFAULT_MIN_VISIT_SEC = 120;
+  // minVisitSec: opportunities whose in-room duration (exit − entered) is below this
+  //   are excluded from compliance and tagged 'short'. Editable by the observer.
+  const obs = {
+    sessions: [], activeSessionId: null, activeOppId: null,
+    minVisitSec: DEFAULT_MIN_VISIT_SEC,
+  };
+
+  const uid = (prefix) => prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+
+  const loadSessions = () => {
+    try {
+      const raw = localStorage.getItem(SESS_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.sessions)) obs.sessions = data.sessions;
+      obs.activeSessionId = data.activeSessionId || null;
+      obs.activeOppId = data.activeOppId || null;
+      if (typeof data.minVisitSec === 'number') obs.minVisitSec = data.minVisitSec;
+    } catch { /* ignore */ }
+  };
+  const saveSessions = () => {
+    try { localStorage.setItem(SESS_KEY, JSON.stringify(obs)); } catch { /* ignore */ }
+  };
+
+  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', createdAt: Date.now(), opps: [] });
+  // An opportunity is created on Enter Room; enteredAt is stamped immediately.
+  //   washInLoc / washOutLoc: 'inside' | 'outside' (default 'inside' when stamped).
+  //   notes: one free-text note per event type. staffTag: who washed (e.g. "pink shirt").
+  const newOppObj = () => ({
+    id: uid('opp'),
+    enteredAt: Date.now(),
+    washIn: null,  washInLoc: null,  washInReused: false,
+    washOut: null, washOutLoc: null, washOutReused: false,
+    exit: null,
+    staffTag: '',
+    notes: { entry: '', washIn: '', washOut: '', exit: '' },
+  });
+
+  const activeSession = () => obs.sessions.find(s => s.id === obs.activeSessionId) || null;
+  // Lazily create/select a session — called when the observer first acts or types.
+  const ensureSession = () => {
+    let s = activeSession();
+    if (!s) {
+      s = obs.sessions[obs.sessions.length - 1] || null;
+      if (!s) { s = newSessionObj(); obs.sessions.push(s); }
+      obs.activeSessionId = s.id;
+    }
+    return s;
+  };
+  // Active opportunity: the explicitly-clicked one if it's still in this session,
+  // otherwise the most recently created opportunity (the default).
+  const activeOpp = () => {
+    const s = activeSession();
+    if (!s || !s.opps.length) return null;
+    return s.opps.find(o => o.id === obs.activeOppId) || s.opps[s.opps.length - 1];
+  };
+
+  const fmtClock = (epoch) => {
+    if (!epoch) return null;
+    const d = new Date(epoch);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
+
+  // ----- Compliance -----
+  // Per-opportunity score: two washes (in + out) = 100, one wash = 50, none = 0.
+  // Opportunities shorter than minVisitSec (exit − entered) are 'short' and excluded.
+  const oppDurationMs = (o) => (o.enteredAt && o.exit) ? (o.exit - o.enteredAt) : null;
+  const oppIsShort = (o) => {
+    const d = oppDurationMs(o);
+    return d != null && d < obs.minVisitSec * 1000;   // needs an exit to be judged short
+  };
+  const oppWashCount = (o) => (o.washIn ? 1 : 0) + (o.washOut ? 1 : 0);
+  const oppScore = (o) => { const w = oppWashCount(o); return w >= 2 ? 100 : (w === 1 ? 50 : 0); };
+  const sessionCompliance = (s) => {
+    const scored = (s ? s.opps : []).filter(o => !oppIsShort(o));
+    const shortCount = (s ? s.opps.length : 0) - scored.length;
+    const rate = scored.length
+      ? Math.round(scored.reduce((a, o) => a + oppScore(o), 0) / scored.length)
+      : null;
+    return { rate, scored: scored.length, short: shortCount };
+  };
+
+  // ----- Actions -----
+  const doEnterRoom = () => {
+    const s = ensureSession();
+    const o = newOppObj();
+    s.opps.push(o);
+    obs.activeOppId = o.id;          // new opportunity becomes active
+    saveSessions(); renderSessions();
+  };
+
+  // Stamp a wash/exit on the active opportunity. Re-tapping overwrites — latest tap
+  // wins, so a mistimed tap can simply be redone.
+  const doWashIn = () => {
+    const o = activeOpp(); if (!o) return;   // no opportunity yet — Enter Room first
+    o.washIn = Date.now();
+    o.washInLoc = o.washInLoc || 'inside';
+    o.washInReused = false;                  // freshly observed, not reused
+    saveSessions(); renderSessions();
+  };
+  const doWashOut = () => {
+    const o = activeOpp(); if (!o) return;
+    o.washOut = Date.now();
+    o.washOutLoc = o.washOutLoc || 'inside';
+    o.washOutReused = false;
+    saveSessions(); renderSessions();
+  };
+  const doExit = () => {
+    const o = activeOpp(); if (!o) return;
+    o.exit = Date.now();
+    saveSessions(); renderSessions();
+  };
+
+  const clearField = (oppId, field) => {
+    const s = activeSession(); if (!s) return;
+    const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    o[field] = null;
+    if (field === 'washIn')  { o.washInLoc = null;  o.washInReused = false; }
+    if (field === 'washOut') { o.washOutLoc = null; o.washOutReused = false; }
+    saveSessions(); renderSessions();
+  };
+
+  // Toggle a wash's inside/outside-room location.
+  const toggleLoc = (oppId, field) => {
+    const s = activeSession(); if (!s) return;
+    const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    const key = field === 'washIn' ? 'washInLoc' : 'washOutLoc';
+    o[key] = o[key] === 'inside' ? 'outside' : 'inside';
+    saveSessions(); renderSessions();
+  };
+
+  // Notes save on every keystroke (no re-render), so nothing is lost when the
+  // observer taps away — clicking elsewhere blurs the field with data already saved.
+  const setNote = (oppId, type, value) => {
+    const s = activeSession(); if (!s) return;
+    const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    if (!o.notes) o.notes = { entry: '', washIn: '', washOut: '', exit: '' };
+    o.notes[type] = value;
+    saveSessions();
+  };
+  const setStaffTag = (oppId, value) => {
+    const s = activeSession(); if (!s) return;
+    const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    o.staffTag = value;
+    saveSessions();
+  };
+
+  // Reuse: one tap credits a wash on the active opportunity. It copies the most
+  // recent prior wash of the same type in this session (so one observed hand-wash
+  // can credit several opportunities); if there's no prior wash, it stamps now.
+  // Either way the opportunity gets the wash credit — no manual time-picking.
+  const mostRecentPriorWash = (field, excludeId) => {
+    const s = activeSession(); if (!s) return null;
+    const locKey = field === 'washIn' ? 'washInLoc' : 'washOutLoc';
+    let best = null;
+    s.opps.forEach((o) => {
+      if (o.id === excludeId) return;
+      const t = o[field];
+      if (t && (!best || t > best.t)) best = { t, loc: o[locKey] || 'inside' };
+    });
+    return best;
+  };
+  const reuseWash = (oppId, field) => {
+    const s = activeSession(); if (!s) return;
+    const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    const locKey = field === 'washIn' ? 'washInLoc' : 'washOutLoc';
+    const prior = mostRecentPriorWash(field, oppId);
+    o[field] = prior ? prior.t : Date.now();
+    o[locKey] = prior ? prior.loc : (o[locKey] || 'inside');
+    o[field + 'Reused'] = true;              // mark as reused so the card shows "Reused"
+    saveSessions(); renderSessions();
+  };
+  const minVisitInput = $('minVisit');
+  const setMinVisit = (val) => {
+    const n = parseInt(val, 10);
+    obs.minVisitSec = (isNaN(n) || n < 0) ? 0 : n;
+    saveSessions(); renderSessions();
+  };
+  const setActiveOpp = (oppId) => {
+    obs.activeOppId = oppId;
+    saveSessions(); renderSessions();
+  };
+  const deleteOpp = (oppId) => {
+    if (!confirm('Delete this opportunity?')) return;
+    const s = activeSession(); if (!s) return;
+    s.opps = s.opps.filter(o => o.id !== oppId);
+    if (obs.activeOppId === oppId) {
+      obs.activeOppId = s.opps.length ? s.opps[s.opps.length - 1].id : null;
+    }
+    saveSessions(); renderSessions();
+  };
+
+  // ----- Session management -----
+  const switchSession = (id) => {
+    obs.activeSessionId = id;
+    const s = activeSession();
+    obs.activeOppId = (s && s.opps.length) ? s.opps[s.opps.length - 1].id : null;
+    saveSessions(); renderSessions();
+  };
+  const doNewSession = () => {
+    const s = newSessionObj();
+    obs.sessions.push(s);
+    obs.activeSessionId = s.id;
+    obs.activeOppId = null;
+    saveSessions(); renderSessions();
+    $('sessDay').focus();
+  };
+
+  // ----- Rendering -----
+  const visitsList = $('visitsList');
+  const visitsEmpty = $('visitsEmpty');
+  const obsStatus = $('obsStatus');
+  const sessSelect = $('sessSelect');
+  const sessDayInput = $('sessDay');
+  const sessUnitInput = $('sessUnit');
+
+  // Fixed event order shown inside each opportunity card.
+  //   note: key in opp.notes  ·  locKey: opp field holding inside/outside (wash rows)
+  const EVENTS = [
+    { key: 'enteredAt', label: 'Entered',  note: 'entry' },
+    { key: 'washIn',    label: 'Wash In',  note: 'washIn',  locKey: 'washInLoc',  wash: true },
+    { key: 'washOut',   label: 'Wash Out', note: 'washOut', locKey: 'washOutLoc', wash: true },
+    { key: 'exit',      label: 'Exit',     note: 'exit' },
+  ];
+
+  const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const sessionLabel = (s) => {
+    const day = s.day || 'Untitled day';
+    return day + (s.unit ? ' · ' + s.unit : '');
+  };
+
+  // Distinct non-empty staff tags across all sessions — powers reuse-by-autocomplete.
+  const refreshStaffTagList = () => {
+    const list = $('staffTagList');
+    const seen = new Set();
+    obs.sessions.forEach(s => s.opps.forEach(o => {
+      const t = (o.staffTag || '').trim();
+      if (t) seen.add(t);
+    }));
+    list.innerHTML = [...seen].map(t => `<option value="${esc(t)}"></option>`).join('');
+  };
+
+  const refreshSessionSelect = () => {
+    sessSelect.innerHTML = '';
+    obs.sessions.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      const c = sessionCompliance(s);
+      const rate = c.rate == null ? '—' : c.rate + '%';
+      opt.textContent = `${sessionLabel(s)}  (${s.opps.length}) · ${rate}`;
+      if (s.id === obs.activeSessionId) opt.selected = true;
+      sessSelect.appendChild(opt);
+    });
+    sessSelect.style.display = obs.sessions.length ? '' : 'none';
+  };
+
+  const renderOpp = (o, idx, isActive) => {
+    const article = document.createElement('article');
+    article.className = 'visit' + (isActive ? ' is-active' : '');
+    article.dataset.id = o.id;
+
+    const short = oppIsShort(o);
+    if (short) article.classList.add('is-short');
+    const status = isActive ? 'Active' : (o.exit ? 'Complete' : 'Open');
+    // Per-opportunity score, shown on the card so each contribution is visible:
+    // 0 washes = 0%, 1 = 50%, 2 = 100%. 'short' opportunities are excluded from the rate.
+    const washes = oppWashCount(o);
+    const scoreHTML = short
+      ? `<span class="visit-score">excluded · short</span>`
+      : `<span class="visit-score${washes >= 2 ? ' full' : ''}">${washes} wash${washes === 1 ? '' : 'es'}<span class="pct">${oppScore(o)}%</span></span>`;
+    const notes = o.notes || {};
+    const rowsHTML = EVENTS.map((ev) => {
+      const t = fmtClock(o[ev.key]);
+      const set = !!o[ev.key];
+      // Detail column: wash rows get an inside/outside toggle; any stamped field on
+      // the active card gets a "clear". An unstamped wash on the active card gets a
+      // one-tap "reuse" button that credits the wash (see reuseWash).
+      const controls = [];
+      if (ev.wash && set) {
+        const loc = o[ev.locKey] === 'outside' ? 'outside' : 'inside';
+        controls.push(`<button class="toggle-pill" data-action="toggle-loc" data-field="${ev.key}" data-state="${loc}" type="button">${loc === 'inside' ? 'Inside' : 'Outside'}</button>`);
+      }
+      if (ev.wash && set && o[ev.key + 'Reused']) {
+        controls.push(`<span class="reused-tag">Reused</span>`);
+      }
+      if (ev.wash && !set && isActive) {
+        controls.push(`<button class="ev-reuse" data-action="reuse-wash" data-field="${ev.key}" type="button">reuse ↻</button>`);
+      }
+      if (isActive && set && ev.key !== 'enteredAt') {
+        controls.push(`<button class="ev-clear" data-action="clear" data-field="${ev.key}" type="button">clear</button>`);
+      }
+      // Notes only render on the active card (or when they already hold text), so
+      // inactive cards stay compact in the grid.
+      const noteVal = notes[ev.note] || '';
+      const noteHTML = (isActive || noteVal)
+        ? `<div class="ev-note-wrap"><input class="ev-note" data-note="${ev.note}" type="text"
+                   placeholder="${ev.label} note…" value="${esc(noteVal)}"
+                   autocomplete="off" spellcheck="false" /></div>`
+        : '';
+      return `
+        <div class="event-row" data-kind="${ev.key}">
+          <div class="ev-main">
+            <span class="ev-label">${ev.label}</span>
+            <span class="ev-time ${t ? '' : 'is-empty'}">${t || 'Not yet'}</span>
+            <span class="ev-detail">${controls.join('')}</span>
+          </div>
+          ${noteHTML}
+        </div>`;
+    }).join('');
+
+    article.innerHTML = `
+      <header class="visit-head">
+        <div class="visit-num">Opp ${pad(idx + 1)}<span class="small">${status}</span>${short ? '<span class="short-badge">short</span>' : ''}</div>
+        <div class="visit-meta">${scoreHTML}</div>
+        <button class="visit-delete" data-action="del" title="Delete opportunity" type="button">×</button>
+      </header>
+      <div class="visit-staff">
+        <label>Staff</label>
+        <input class="staff-input" type="text" list="staffTagList"
+               placeholder="e.g. pink shirt" value="${esc(o.staffTag || '')}"
+               autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="visit-events">
+        <div class="events-list">${rowsHTML}</div>
+      </div>
+    `;
+
+    // Inline note inputs — save per keystroke, no re-render (keeps focus & data safe).
+    article.querySelectorAll('.ev-note').forEach((inp) => {
+      inp.addEventListener('input', () => setNote(o.id, inp.dataset.note, inp.value));
+      inp.addEventListener('click', (e) => e.stopPropagation());   // don't toggle active
+    });
+    const staffInp = article.querySelector('.staff-input');
+    staffInp.addEventListener('input', () => setStaffTag(o.id, staffInp.value));
+    staffInp.addEventListener('change', refreshStaffTagList);       // new tag → reusable
+    staffInp.addEventListener('click', (e) => e.stopPropagation());
+
+    article.addEventListener('click', (e) => {
+      const act = e.target.closest('[data-action]');
+      if (act) {
+        e.stopPropagation();
+        const a = act.dataset.action;
+        if (a === 'del') deleteOpp(o.id);
+        else if (a === 'clear') clearField(o.id, act.dataset.field);
+        else if (a === 'toggle-loc') toggleLoc(o.id, act.dataset.field);
+        else if (a === 'reuse-wash') reuseWash(o.id, act.dataset.field);
+        return;
+      }
+      setActiveOpp(o.id);            // tapping anywhere else on the card activates it
+    });
+    return article;
+  };
+
+  const updateActionButtons = (act) => {
+    const dis = !act;
+    ['btnWashIn', 'btnWashOut', 'btnExit'].forEach((id) => { $(id).disabled = dis; });
+  };
+
+  // Update the live compliance readout for the active session.
+  const renderCompliance = (s) => {
+    const c = sessionCompliance(s);
+    $('complianceValue').textContent = c.rate == null ? '—' : c.rate + '%';
+    $('complianceBreakdown').textContent = `${c.scored} scored · ${c.short} short`;
+  };
+
+  const renderSessions = () => {
+    refreshSessionSelect();
+    refreshStaffTagList();
+    const s = activeSession();
+    // Sync the Day/Unit inputs — render only runs on structural changes, never
+    // mid-keystroke, so writing .value here won't fight the observer's typing.
+    sessDayInput.value = s ? (s.day || '') : '';
+    sessUnitInput.value = s ? (s.unit || '') : '';
+    // Don't overwrite the min-visit field while it's being edited (live re-render).
+    if (document.activeElement !== minVisitInput) minVisitInput.value = obs.minVisitSec;
+    renderCompliance(s);
+
+    visitsList.innerHTML = '';
+    const opps = s ? s.opps : [];
+    if (opps.length === 0) {
+      visitsEmpty.style.display = '';
+      obsStatus.textContent = 'No active opportunity';
+      obsStatus.classList.remove('is-active');
+      updateActionButtons(null);
+      return;
+    }
+    visitsEmpty.style.display = 'none';
+    const act = activeOpp();
+    for (let i = opps.length - 1; i >= 0; i--) {  // newest first
+      visitsList.appendChild(renderOpp(opps[i], i, act && opps[i].id === act.id));
+    }
+    obsStatus.innerHTML = `Active <span class="pill">Opportunity ${pad(opps.indexOf(act) + 1)}</span>`;
+    obsStatus.classList.add('is-active');
+    updateActionButtons(act);
+  };
+
+  // ----- Wiring -----
+  $('btnEnterRoom').addEventListener('click', doEnterRoom);
+  $('btnWashIn').addEventListener('click', doWashIn);
+  $('btnWashOut').addEventListener('click', doWashOut);
+  $('btnExit').addEventListener('click', doExit);
+  $('btnNewSession').addEventListener('click', doNewSession);
+  minVisitInput.addEventListener('input', (e) => setMinVisit(e.target.value));
+  sessSelect.addEventListener('change', (e) => switchSession(e.target.value));
+  sessDayInput.addEventListener('input', (e) => {
+    const s = ensureSession(); s.day = e.target.value; saveSessions(); refreshSessionSelect();
+  });
+  sessUnitInput.addEventListener('input', (e) => {
+    const s = ensureSession(); s.unit = e.target.value; saveSessions(); refreshSessionSelect();
+  });
+
+  // Export every session's opportunities — one row per opportunity.
+  // Column order: identity → timestamps + wash location/reused → staff → notes (rightmost).
+  $('exportVisitsBtn').addEventListener('click', () => {
+    const iso = (e) => e ? new Date(e).toISOString() : '';
+    const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const rows = [[
+      'session_day','unit','opportunity',
+      'entered_iso',
+      'wash_in_iso','wash_in_location','wash_in_reused',
+      'wash_out_iso','wash_out_location','wash_out_reused',
+      'exit_iso',
+      'staff_tag',
+      'entry_note','wash_in_note','wash_out_note','exit_note',
+    ]];
+    obs.sessions.forEach((s) => {
+      s.opps.forEach((o, i) => {
+        const n = o.notes || {};
+        rows.push([
+          q(s.day), q(s.unit), i + 1,
+          iso(o.enteredAt),
+          iso(o.washIn),  o.washInLoc  || '', o.washInReused  ? 'reused' : '',
+          iso(o.washOut), o.washOutLoc || '', o.washOutReused ? 'reused' : '',
+          iso(o.exit),
+          q(o.staffTag),
+          q(n.entry), q(n.washIn), q(n.washOut), q(n.exit),
+        ]);
+      });
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = fmtStampDate(new Date()) + '_' + pad(new Date().getHours()) + pad(new Date().getMinutes());
+    a.href = url;
+    a.download = `hh_observations_${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  });
+
+  // Clear the current session's opportunities (keeps the session, day, and unit).
+  $('clearVisitsBtn').addEventListener('click', () => {
+    const s = activeSession();
+    if (!s || s.opps.length === 0) return;
+    if (!confirm('Clear all opportunities in this session?')) return;
+    s.opps = [];
+    obs.activeOppId = null;
+    saveSessions();
+    renderSessions();
+  });
+
+  // ===== Boot =====
+  load();
+  renderSW();
+  renderLaps();
+  setMode();
+  loadSessions();
+  renderSessions();
+})();
+</script>
+</body>
+</html>
