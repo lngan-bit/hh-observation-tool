@@ -1340,6 +1340,44 @@
 
   /* selection */
   ::selection { background: var(--vermillion); color: var(--paper); }
+
+  /* ---------- phone: sticky action rail + scrollable opportunities ----------
+     On phones the four actions become a narrow sticky side rail on the left while
+     the opportunity cards scroll in a single column beside it — so the buttons
+     stay reachable and you can flick through many opportunities. Placed last so it
+     wins over the earlier obs-actions grid rules at this width. */
+  @media (max-width: 600px) {
+    .obs-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .obs-actions {
+      position: sticky;
+      top: 8px;
+      z-index: 2;
+      flex: 0 0 80px;
+      width: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0;
+      border-bottom: none;
+      align-self: flex-start;
+    }
+    .obs-actions .obs-btn {
+      min-height: 46px;
+      padding: 10px 6px;
+      align-items: center;
+      text-align: center;
+      gap: 0;
+    }
+    .obs-actions .obs-btn-eyebrow { display: none; }   /* labels too long for the rail */
+    .obs-actions .obs-btn-label { font-size: 11px; letter-spacing: .06em; line-height: 1.2; }
+
+    .visits-wrap { flex: 1 1 auto; min-width: 0; margin-top: 0; }
+    #visitsList { grid-template-columns: 1fr; gap: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -1415,25 +1453,6 @@
       </div>
     </div>
 
-    <div class="obs-actions">
-      <button class="btn obs-btn obs-btn-primary" id="btnEnterRoom" type="button">
-        <span class="obs-btn-eyebrow">＋ New opportunity</span>
-        <span class="obs-btn-label">Enter Room</span>
-      </button>
-      <button class="btn obs-btn" id="btnWashIn" type="button">
-        <span class="obs-btn-eyebrow">Active opp</span>
-        <span class="obs-btn-label">Wash In</span>
-      </button>
-      <button class="btn obs-btn" id="btnWashOut" type="button">
-        <span class="obs-btn-eyebrow">Active opp</span>
-        <span class="obs-btn-label">Wash Out</span>
-      </button>
-      <button class="btn obs-btn" id="btnExit" type="button">
-        <span class="obs-btn-eyebrow">Active opp</span>
-        <span class="obs-btn-label">Exit</span>
-      </button>
-    </div>
-
     <div class="obs-bar">
       <span class="obs-status" id="obsStatus">No active opportunity</span>
     </div>
@@ -1459,11 +1478,35 @@
     <!-- Staff tags entered so far — powers reuse-by-autocomplete on the staff field -->
     <datalist id="staffTagList"></datalist>
 
-    <div class="visits-wrap">
-      <div id="visitsList"></div>
-      <div class="visits-empty" id="visitsEmpty">
-        No opportunities yet.<br>
-        Tap <span class="key">Enter Room</span> when you see someone enter — each entry starts an opportunity.
+    <!-- Actions + opportunities. On phones (≤600px) .obs-actions becomes a sticky
+         side rail and the cards scroll beside it; on wider screens the actions sit
+         as a row on top and the cards grid below. -->
+    <div class="obs-main">
+      <div class="obs-actions">
+        <button class="btn obs-btn obs-btn-primary" id="btnEnterRoom" type="button">
+          <span class="obs-btn-eyebrow">＋ New opportunity</span>
+          <span class="obs-btn-label">Enter Room</span>
+        </button>
+        <button class="btn obs-btn" id="btnWashIn" type="button">
+          <span class="obs-btn-eyebrow">Active opp</span>
+          <span class="obs-btn-label">Wash In</span>
+        </button>
+        <button class="btn obs-btn" id="btnWashOut" type="button">
+          <span class="obs-btn-eyebrow">Active opp</span>
+          <span class="obs-btn-label">Wash Out</span>
+        </button>
+        <button class="btn obs-btn" id="btnExit" type="button">
+          <span class="obs-btn-eyebrow">Active opp</span>
+          <span class="obs-btn-label">Exit</span>
+        </button>
+      </div>
+
+      <div class="visits-wrap">
+        <div id="visitsList"></div>
+        <div class="visits-empty" id="visitsEmpty">
+          No opportunities yet.<br>
+          Tap <span class="key">Enter Room</span> when you see someone enter — each entry starts an opportunity.
+        </div>
       </div>
     </div>
 
