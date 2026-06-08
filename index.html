@@ -645,7 +645,9 @@
   /* ---------- observations: session bar ---------- */
   .session-bar {
     display: grid;
-    grid-template-columns: 1fr 1fr auto;
+    /* Day · Unit · Start · End · session switch. Day/Unit are wider (free text);
+       Start/End are narrower time fields. Collapses to 2 columns at ≤880px. */
+    grid-template-columns: minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,0.9fr) minmax(0,0.9fr) auto;
     align-items: end;
     gap: 18px;
     padding: 22px 0 18px;
@@ -816,6 +818,13 @@
     -webkit-tap-highlight-color: transparent;
   }
   .obs-bar .btn-link:hover { color: var(--vermillion); border-color: var(--vermillion); }
+  .obs-bar .btn-link[disabled] {
+    color: var(--ink-faint);
+    border-color: var(--rule-soft);
+    cursor: default;
+    opacity: .5;
+  }
+  .obs-bar .btn-link[disabled]:hover { color: var(--ink-faint); border-color: var(--rule-soft); }
   .obs-status {
     display: inline-flex;
     align-items: center;
@@ -1447,6 +1456,16 @@
         <label for="sessUnit">Unit</label>
         <input id="sessUnit" type="text" placeholder="e.g. 5 West ICU" autocomplete="off" spellcheck="false" />
       </div>
+      <!-- Session observation window — when the observer started and stopped watching
+           this unit. Free of the per-opportunity stamps; used for reporting coverage. -->
+      <div class="session-field">
+        <label for="sessStart">Start</label>
+        <input id="sessStart" type="time" autocomplete="off" />
+      </div>
+      <div class="session-field">
+        <label for="sessEnd">End</label>
+        <input id="sessEnd" type="time" autocomplete="off" />
+      </div>
       <div class="session-switch">
         <select id="sessSelect" aria-label="Switch session"></select>
         <button class="btn-link" id="btnNewSession" type="button">+ New session</button>
@@ -1455,6 +1474,7 @@
 
     <div class="obs-bar">
       <span class="obs-status" id="obsStatus">No active opportunity</span>
+      <button class="btn-link" id="btnUndo" type="button" disabled>↶ Undo</button>
     </div>
 
     <!-- Live compliance for the active session. Score per opportunity: two washes = 100%,
@@ -1488,7 +1508,7 @@
           <span class="obs-btn-label">Enter Room</span>
         </button>
         <button class="btn obs-btn" id="btnWashIn" type="button">
-          <span class="obs-btn-eyebrow">Active opp</span>
+          <span class="obs-btn-eyebrow">Active · or new</span>
           <span class="obs-btn-label">Wash In</span>
         </button>
         <button class="btn obs-btn" id="btnWashOut" type="button">
@@ -1993,6 +2013,38 @@
 
   const uid = (prefix) => prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
 
+  // ===== Undo =====
+  // A simple snapshot stack: before any data-changing action we deep-clone the whole
+  // obs state and push it. Undo (button or ⌘Z / Ctrl-Z) pops and restores. Lives in
+  // memory only — it is NOT persisted, so a reload starts a fresh undo history but
+  // never touches the saved observation data. Navigation (activating a card, switching
+  // sessions) is intentionally NOT undoable.
+  const undoStack = [];
+  let lastEditTag = null;   // coalesces a burst of keystrokes in one field into one step
+  const snapshotObs = () => JSON.parse(JSON.stringify(obs));
+  const updateUndoButton = () => { $('btnUndo').disabled = undoStack.length === 0; };
+  // tag: pass a stable string (e.g. a field key) for text edits so a run of keystrokes
+  //   collapses to a single undo step; pass nothing for discrete tap actions.
+  const pushUndo = (tag) => {
+    if (tag && tag === lastEditTag) return;   // same field still being typed — skip
+    undoStack.push(snapshotObs());
+    if (undoStack.length > 200) undoStack.shift();
+    lastEditTag = tag || null;
+    updateUndoButton();
+  };
+  const undo = () => {
+    if (!undoStack.length) return;
+    const prev = undoStack.pop();
+    obs.sessions = prev.sessions;
+    obs.activeSessionId = prev.activeSessionId;
+    obs.activeOppId = prev.activeOppId;
+    if (typeof prev.minVisitSec === 'number') obs.minVisitSec = prev.minVisitSec;
+    lastEditTag = null;
+    saveSessions();
+    renderSessions();
+    updateUndoButton();
+  };
+
   const loadSessions = () => {
     try {
       const raw = localStorage.getItem(SESS_KEY);
@@ -2008,9 +2060,12 @@
     try { localStorage.setItem(SESS_KEY, JSON.stringify(obs)); } catch { /* ignore */ }
   };
 
-  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', createdAt: Date.now(), opps: [] });
+  // startTime / endTime: the observer's "HH:MM" window for this session (free of any
+  //   per-opportunity stamp). Older saved sessions without these load as '' (no break).
+  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', createdAt: Date.now(), opps: [] });
   // An opportunity is created on Enter Room; enteredAt is stamped immediately.
-  //   washInLoc / washOutLoc: 'inside' | 'outside' (default 'inside' when stamped).
+  //   washInLoc / washOutLoc: 'inside' | 'outside' (default 'outside' when stamped —
+  //   the observer can usually only see washes at the door dispenser, not inside).
   //   notes: one free-text note per event type. staffTag: who washed (e.g. "pink shirt").
   const newOppObj = () => ({
     id: uid('opp'),
@@ -2068,6 +2123,15 @@
 
   // ----- Actions -----
   const doEnterRoom = () => {
+    pushUndo();
+    const cur = activeOpp();
+    // If the active opportunity was started by a pre-entry Wash In (entry still blank),
+    // Enter Room fills in that entry instead of opening a separate opportunity.
+    if (cur && cur.enteredAt == null) {
+      cur.enteredAt = Date.now();
+      saveSessions(); renderSessions();
+      return;
+    }
     const s = ensureSession();
     const o = newOppObj();
     s.opps.push(o);
@@ -2078,21 +2142,34 @@
   // Stamp a wash/exit on the active opportunity. Re-tapping overwrites — latest tap
   // wins, so a mistimed tap can simply be redone.
   const doWashIn = () => {
-    const o = activeOpp(); if (!o) return;   // no opportunity yet — Enter Room first
+    pushUndo();
+    let o = activeOpp();
+    // Wash In with no active opportunity starts one with the entry left blank — the
+    // observer saw the wash (e.g. at the dispenser outside the door) before the person
+    // entered. They fill the entry afterwards by tapping Enter Room.
+    if (!o) {
+      const s = ensureSession();
+      o = newOppObj();
+      o.enteredAt = null;            // entry not yet observed
+      s.opps.push(o);
+      obs.activeOppId = o.id;
+    }
     o.washIn = Date.now();
-    o.washInLoc = o.washInLoc || 'inside';
+    o.washInLoc = o.washInLoc || 'outside';  // most observed washes are at the door dispenser
     o.washInReused = false;                  // freshly observed, not reused
     saveSessions(); renderSessions();
   };
   const doWashOut = () => {
     const o = activeOpp(); if (!o) return;
+    pushUndo();
     o.washOut = Date.now();
-    o.washOutLoc = o.washOutLoc || 'inside';
+    o.washOutLoc = o.washOutLoc || 'outside';
     o.washOutReused = false;
     saveSessions(); renderSessions();
   };
   const doExit = () => {
     const o = activeOpp(); if (!o) return;
+    pushUndo();
     o.exit = Date.now();
     saveSessions(); renderSessions();
   };
@@ -2100,6 +2177,7 @@
   const clearField = (oppId, field) => {
     const s = activeSession(); if (!s) return;
     const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    pushUndo();
     o[field] = null;
     if (field === 'washIn')  { o.washInLoc = null;  o.washInReused = false; }
     if (field === 'washOut') { o.washOutLoc = null; o.washOutReused = false; }
@@ -2110,6 +2188,7 @@
   const toggleLoc = (oppId, field) => {
     const s = activeSession(); if (!s) return;
     const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    pushUndo();
     const key = field === 'washIn' ? 'washInLoc' : 'washOutLoc';
     o[key] = o[key] === 'inside' ? 'outside' : 'inside';
     saveSessions(); renderSessions();
@@ -2120,6 +2199,7 @@
   const setNote = (oppId, type, value) => {
     const s = activeSession(); if (!s) return;
     const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    pushUndo('note:' + oppId + ':' + type);   // a typing burst = one undo step
     if (!o.notes) o.notes = { entry: '', washIn: '', washOut: '', exit: '' };
     o.notes[type] = value;
     saveSessions();
@@ -2127,6 +2207,7 @@
   const setStaffTag = (oppId, value) => {
     const s = activeSession(); if (!s) return;
     const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    pushUndo('staff:' + oppId);
     o.staffTag = value;
     saveSessions();
   };
@@ -2142,22 +2223,24 @@
     s.opps.forEach((o) => {
       if (o.id === excludeId) return;
       const t = o[field];
-      if (t && (!best || t > best.t)) best = { t, loc: o[locKey] || 'inside' };
+      if (t && (!best || t > best.t)) best = { t, loc: o[locKey] || 'outside' };
     });
     return best;
   };
   const reuseWash = (oppId, field) => {
     const s = activeSession(); if (!s) return;
     const o = s.opps.find(x => x.id === oppId); if (!o) return;
+    pushUndo();
     const locKey = field === 'washIn' ? 'washInLoc' : 'washOutLoc';
     const prior = mostRecentPriorWash(field, oppId);
     o[field] = prior ? prior.t : Date.now();
-    o[locKey] = prior ? prior.loc : (o[locKey] || 'inside');
+    o[locKey] = prior ? prior.loc : (o[locKey] || 'outside');
     o[field + 'Reused'] = true;              // mark as reused so the card shows "Reused"
     saveSessions(); renderSessions();
   };
   const minVisitInput = $('minVisit');
   const setMinVisit = (val) => {
+    pushUndo('minVisit');
     const n = parseInt(val, 10);
     obs.minVisitSec = (isNaN(n) || n < 0) ? 0 : n;
     saveSessions(); renderSessions();
@@ -2169,6 +2252,7 @@
   const deleteOpp = (oppId) => {
     if (!confirm('Delete this opportunity?')) return;
     const s = activeSession(); if (!s) return;
+    pushUndo();
     s.opps = s.opps.filter(o => o.id !== oppId);
     if (obs.activeOppId === oppId) {
       obs.activeOppId = s.opps.length ? s.opps[s.opps.length - 1].id : null;
@@ -2184,6 +2268,7 @@
     saveSessions(); renderSessions();
   };
   const doNewSession = () => {
+    pushUndo();
     const s = newSessionObj();
     obs.sessions.push(s);
     obs.activeSessionId = s.id;
@@ -2199,6 +2284,9 @@
   const sessSelect = $('sessSelect');
   const sessDayInput = $('sessDay');
   const sessUnitInput = $('sessUnit');
+  const sessStartInput = $('sessStart');
+  const sessEndInput = $('sessEnd');
+  const enterRoomEyebrow = document.querySelector('#btnEnterRoom .obs-btn-eyebrow');
 
   // Fixed event order shown inside each opportunity card.
   //   note: key in opp.notes  ·  locKey: opp field holding inside/outside (wash rows)
@@ -2340,7 +2428,11 @@
 
   const updateActionButtons = (act) => {
     const dis = !act;
-    ['btnWashIn', 'btnWashOut', 'btnExit'].forEach((id) => { $(id).disabled = dis; });
+    // Wash In stays enabled even with no active opportunity — it can start one (the
+    // pre-entry wash case). Wash Out and Exit still require an active opportunity.
+    $('btnWashIn').disabled = false;
+    $('btnWashOut').disabled = dis;
+    $('btnExit').disabled = dis;
   };
 
   // Update the live compliance readout for the active session.
@@ -2358,9 +2450,13 @@
     // mid-keystroke, so writing .value here won't fight the observer's typing.
     sessDayInput.value = s ? (s.day || '') : '';
     sessUnitInput.value = s ? (s.unit || '') : '';
+    // Don't overwrite a time field while it's being edited (live re-render).
+    if (document.activeElement !== sessStartInput) sessStartInput.value = s ? (s.startTime || '') : '';
+    if (document.activeElement !== sessEndInput)   sessEndInput.value   = s ? (s.endTime   || '') : '';
     // Don't overwrite the min-visit field while it's being edited (live re-render).
     if (document.activeElement !== minVisitInput) minVisitInput.value = obs.minVisitSec;
     renderCompliance(s);
+    updateUndoButton();
 
     visitsList.innerHTML = '';
     const opps = s ? s.opps : [];
@@ -2368,6 +2464,7 @@
       visitsEmpty.style.display = '';
       obsStatus.textContent = 'No active opportunity';
       obsStatus.classList.remove('is-active');
+      enterRoomEyebrow.textContent = '＋ New opportunity';
       updateActionButtons(null);
       return;
     }
@@ -2378,6 +2475,9 @@
     }
     obsStatus.innerHTML = `Active <span class="pill">Opportunity ${pad(opps.indexOf(act) + 1)}</span>`;
     obsStatus.classList.add('is-active');
+    // When the active opportunity was started by a pre-entry Wash In, Enter Room will
+    // fill its entry rather than open a new one — signal that on the button.
+    enterRoomEyebrow.textContent = (act && act.enteredAt == null) ? '↳ Fill entry' : '＋ New opportunity';
     updateActionButtons(act);
   };
 
@@ -2387,13 +2487,38 @@
   $('btnWashOut').addEventListener('click', doWashOut);
   $('btnExit').addEventListener('click', doExit);
   $('btnNewSession').addEventListener('click', doNewSession);
+  $('btnUndo').addEventListener('click', undo);
   minVisitInput.addEventListener('input', (e) => setMinVisit(e.target.value));
   sessSelect.addEventListener('change', (e) => switchSession(e.target.value));
   sessDayInput.addEventListener('input', (e) => {
+    pushUndo('day');
     const s = ensureSession(); s.day = e.target.value; saveSessions(); refreshSessionSelect();
   });
   sessUnitInput.addEventListener('input', (e) => {
+    pushUndo('unit');
     const s = ensureSession(); s.unit = e.target.value; saveSessions(); refreshSessionSelect();
+  });
+  sessStartInput.addEventListener('input', (e) => {
+    pushUndo('start');
+    const s = ensureSession(); s.startTime = e.target.value; saveSessions();
+  });
+  sessEndInput.addEventListener('input', (e) => {
+    pushUndo('end');
+    const s = ensureSession(); s.endTime = e.target.value; saveSessions();
+  });
+
+  // ⌘Z / Ctrl-Z undoes the last observation action — but only when not focused in a
+  // text field (so the browser's native text undo still works while typing notes) and
+  // only on the Field Log tab. The Undo button works regardless of focus.
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey) return;
+    if (e.key !== 'z' && e.key !== 'Z') return;
+    const t = e.target;
+    const inField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    const obsActive = document.querySelector('.tab-pane[data-pane="observations"]').classList.contains('is-active');
+    if (inField || !obsActive) return;
+    e.preventDefault();
+    undo();
   });
 
   // Export every session's opportunities — one row per opportunity.
@@ -2402,7 +2527,7 @@
     const iso = (e) => e ? new Date(e).toISOString() : '';
     const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const rows = [[
-      'session_day','unit','opportunity',
+      'session_day','unit','session_start','session_end','opportunity',
       'entered_iso',
       'wash_in_iso','wash_in_location','wash_in_reused',
       'wash_out_iso','wash_out_location','wash_out_reused',
@@ -2414,7 +2539,7 @@
       s.opps.forEach((o, i) => {
         const n = o.notes || {};
         rows.push([
-          q(s.day), q(s.unit), i + 1,
+          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), i + 1,
           iso(o.enteredAt),
           iso(o.washIn),  o.washInLoc  || '', o.washInReused  ? 'reused' : '',
           iso(o.washOut), o.washOutLoc || '', o.washOutReused ? 'reused' : '',
@@ -2442,6 +2567,7 @@
     const s = activeSession();
     if (!s || s.opps.length === 0) return;
     if (!confirm('Clear all opportunities in this session?')) return;
+    pushUndo();
     s.opps = [];
     obs.activeOppId = null;
     saveSessions();
