@@ -714,7 +714,7 @@
   /* ---------- observations: actions ---------- */
   .obs-actions {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
     padding: 24px 0 18px;
     border-bottom: 1px solid var(--rule);
@@ -1231,6 +1231,35 @@
     line-height: 1;
   }
 
+  /* ---------- misc washes ----------
+     Standalone observed washes not tied to any opportunity (e.g. a wash seen at a
+     hallway dispenser). They are recorded for the observer's log but do NOT enter
+     opportunity compliance scoring. Shown in their own box under the opportunities. */
+  .misc-wrap { margin-top: 18px; border: 1px solid var(--rule); }
+  .misc-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 10px 13px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper);
+  }
+  .misc-head .hint {
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 12px;
+  }
+  .misc-wrap .event-row { padding-left: 13px; padding-right: 13px; }
+  .misc-wrap .event-row:last-child { border-bottom: none; }
+
   .visits-empty {
     padding: 50px 12px;
     text-align: center;
@@ -1539,6 +1568,10 @@
           <span class="obs-btn-eyebrow">Active opp</span>
           <span class="obs-btn-label">Exit</span>
         </button>
+        <button class="btn obs-btn" id="btnMiscWash" type="button">
+          <span class="obs-btn-eyebrow">No opportunity</span>
+          <span class="obs-btn-label">Misc Wash</span>
+        </button>
       </div>
 
       <div class="visits-wrap">
@@ -1546,6 +1579,11 @@
         <div class="visits-empty" id="visitsEmpty">
           No opportunities yet.<br>
           Tap <span class="key">Enter Room</span> when you see someone enter — each entry starts an opportunity.
+        </div>
+        <!-- Standalone washes not tied to any opportunity; logged but not scored. -->
+        <div class="misc-wrap" id="miscWrap" style="display:none">
+          <div class="misc-head">Misc washes <span class="hint">not tied to an opportunity</span></div>
+          <div id="miscWashList"></div>
         </div>
       </div>
     </div>
@@ -2082,7 +2120,10 @@
 
   // startTime / endTime: the observer's "HH:MM" window for this session (free of any
   //   per-opportunity stamp). Older saved sessions without these load as '' (no break).
-  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', createdAt: Date.now(), opps: [] });
+  // miscWashes: standalone observed washes not tied to any opportunity — { id, at, loc, note }.
+  //   Recorded for the log but excluded from opportunity compliance scoring. Older saved
+  //   sessions without this field are treated as having none.
+  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', createdAt: Date.now(), opps: [], miscWashes: [] });
   // An opportunity is created on Enter Room; enteredAt is stamped immediately.
   //   washInLoc / washOutLoc: 'inside' | 'outside' (default 'outside' when stamped —
   //   the observer can usually only see washes at the door dispenser, not inside).
@@ -2280,6 +2321,40 @@
     saveSessions(); renderSessions();
   };
 
+  // ----- Misc washes (no opportunity) -----
+  // A standalone observed wash. Logged on the active session, defaults to Outside,
+  // never enters opportunity scoring. Editable location/note + delete, like other washes.
+  const doMiscWash = () => {
+    pushUndo();
+    const s = ensureSession();
+    if (!s.miscWashes) s.miscWashes = [];
+    s.miscWashes.push({ id: uid('misc'), at: Date.now(), loc: 'outside', note: '' });
+    saveSessions(); renderSessions();
+  };
+  const findMisc = (id) => {
+    const s = activeSession();
+    return s ? (s.miscWashes || []).find(m => m.id === id) : null;
+  };
+  const toggleMiscLoc = (id) => {
+    const m = findMisc(id); if (!m) return;
+    pushUndo();
+    m.loc = m.loc === 'inside' ? 'outside' : 'inside';
+    saveSessions(); renderSessions();
+  };
+  const setMiscNote = (id, value) => {
+    const m = findMisc(id); if (!m) return;
+    pushUndo('miscnote:' + id);
+    m.note = value;
+    saveSessions();
+  };
+  const deleteMisc = (id) => {
+    const s = activeSession(); if (!s) return;
+    if (!confirm('Delete this misc wash?')) return;
+    pushUndo();
+    s.miscWashes = (s.miscWashes || []).filter(m => m.id !== id);
+    saveSessions(); renderSessions();
+  };
+
   // ----- Session management -----
   const switchSession = (id) => {
     obs.activeSessionId = id;
@@ -2462,6 +2537,40 @@
     $('complianceBreakdown').textContent = `${c.scored} scored · ${c.short} short`;
   };
 
+  // Render the standalone misc washes for the active session (newest first). Hidden
+  // entirely when there are none, so it never clutters a normal opportunity-only log.
+  const renderMisc = (s) => {
+    const wrap = $('miscWrap');
+    const list = $('miscWashList');
+    const washes = s ? (s.miscWashes || []) : [];
+    if (!washes.length) { wrap.style.display = 'none'; list.innerHTML = ''; return; }
+    wrap.style.display = '';
+    list.innerHTML = '';
+    for (let i = washes.length - 1; i >= 0; i--) {
+      const m = washes[i];
+      const loc = m.loc === 'inside' ? 'inside' : 'outside';
+      const row = document.createElement('div');
+      row.className = 'event-row';
+      row.dataset.kind = 'washIn';   // reuse the wash row's vermillion accent
+      row.innerHTML = `
+        <div class="ev-main">
+          <span class="ev-label">Wash</span>
+          <span class="ev-time">${fmtClock(m.at)}</span>
+          <span class="ev-detail">
+            <button class="toggle-pill" data-act="loc" data-state="${loc}" type="button">${loc === 'inside' ? 'Inside' : 'Outside'}</button>
+            <button class="ev-clear" data-act="del" type="button">delete</button>
+          </span>
+        </div>
+        <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="Note…"
+             value="${esc(m.note || '')}" autocomplete="off" spellcheck="false" /></div>`;
+      const note = row.querySelector('.ev-note');
+      note.addEventListener('input', () => setMiscNote(m.id, note.value));
+      row.querySelector('[data-act="loc"]').addEventListener('click', () => toggleMiscLoc(m.id));
+      row.querySelector('[data-act="del"]').addEventListener('click', () => deleteMisc(m.id));
+      list.appendChild(row);
+    }
+  };
+
   const renderSessions = () => {
     refreshSessionSelect();
     refreshStaffTagList();
@@ -2476,6 +2585,7 @@
     // Don't overwrite the min-visit field while it's being edited (live re-render).
     if (document.activeElement !== minVisitInput) minVisitInput.value = obs.minVisitSec;
     renderCompliance(s);
+    renderMisc(s);
     updateUndoButton();
 
     visitsList.innerHTML = '';
@@ -2510,6 +2620,7 @@
   $('btnWashIn').addEventListener('click', doWashIn);
   $('btnWashOut').addEventListener('click', doWashOut);
   $('btnExit').addEventListener('click', doExit);
+  $('btnMiscWash').addEventListener('click', doMiscWash);
   $('btnNewSession').addEventListener('click', doNewSession);
   $('btnUndo').addEventListener('click', undo);
   minVisitInput.addEventListener('input', (e) => setMinVisit(e.target.value));
@@ -2570,6 +2681,19 @@
           iso(o.exit),
           q(o.staffTag),
           q(n.entry), q(n.washIn), q(n.washOut), q(n.exit),
+        ]);
+      });
+      // Misc washes: one extra row each, marked opportunity = "misc". The wash time and
+      // location go in the wash_in columns; the note in wash_in_note. Not scored.
+      (s.miscWashes || []).forEach((m) => {
+        rows.push([
+          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), 'misc',
+          '',
+          iso(m.at), m.loc || '', '',
+          '', '', '',
+          '',
+          '',
+          '', q(m.note), '', '',
         ]);
       });
     });
