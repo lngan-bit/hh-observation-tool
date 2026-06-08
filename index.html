@@ -714,7 +714,7 @@
   /* ---------- observations: actions ---------- */
   .obs-actions {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 10px;
     padding: 24px 0 18px;
     border-bottom: 1px solid var(--rule);
@@ -1284,12 +1284,10 @@
 
   /* observation-specific responsive */
   @media (max-width: 1100px) {
-    .obs-actions { grid-template-columns: repeat(4, 1fr); }
-    #btnEnterRoom { grid-column: 1 / -1; }
+    .obs-actions { grid-template-columns: repeat(3, 1fr); }   /* 6 buttons → 2 rows of 3 */
   }
   @media (max-width: 880px) {
-    .obs-actions { grid-template-columns: repeat(2, 1fr); }
-    #btnEnterRoom { grid-column: 1 / -1; }
+    .obs-actions { grid-template-columns: repeat(2, 1fr); }   /* → 3 rows of 2 */
     .session-bar { grid-template-columns: 1fr 1fr; }
     .session-switch { grid-column: 1 / -1; justify-content: flex-start; }
   }
@@ -1557,8 +1555,12 @@
           <span class="obs-btn-label">Enter Room</span>
         </button>
         <button class="btn obs-btn" id="btnWashIn" type="button">
-          <span class="obs-btn-eyebrow">Active · or new</span>
+          <span class="obs-btn-eyebrow">Active opp</span>
           <span class="obs-btn-label">Wash In</span>
+        </button>
+        <button class="btn obs-btn" id="btnWashInNew" type="button">
+          <span class="obs-btn-eyebrow">＋ New opportunity</span>
+          <span class="obs-btn-label">New Wash-In</span>
         </button>
         <button class="btn obs-btn" id="btnWashOut" type="button">
           <span class="obs-btn-eyebrow">Active opp</span>
@@ -2202,22 +2204,33 @@
 
   // Stamp a wash/exit on the active opportunity. Re-tapping overwrites — latest tap
   // wins, so a mistimed tap can simply be redone.
+  // Wash In applies ONLY to the active (existing) opportunity — it never creates one.
+  // (Disabled when there's no active opportunity.) To start a fresh opportunity from a
+  // wash, use New Wash-In (doWashInNew) — this avoids accidentally crediting a wash to
+  // an already-exited opportunity that happens to still be active.
   const doWashIn = () => {
+    const o = activeOpp(); if (!o) return;
     pushUndo();
-    let o = activeOpp();
-    // Wash In with no active opportunity starts one with the entry left blank — the
-    // observer saw the wash (e.g. at the dispenser outside the door) before the person
-    // entered. They fill the entry afterwards by tapping Enter Room.
-    if (!o) {
-      const s = ensureSession();
-      o = newOppObj();
-      o.enteredAt = null;            // entry not yet observed
-      s.opps.push(o);
-      obs.activeOppId = o.id;
-    }
     o.washIn = Date.now();
     o.washInLoc = o.washInLoc || 'outside';  // most observed washes are at the door dispenser
     o.washInReused = false;                  // freshly observed, not reused
+    saveSessions(); renderSessions();
+  };
+
+  // New Wash-In: always opens a NEW opportunity with the wash-in stamped and entry left
+  // blank — for the "washed at the door dispenser before walking in" sequence, or when
+  // the previous person has already exited. The observer fills the entry afterwards by
+  // tapping Enter Room (which fills a pending blank entry rather than opening another opp).
+  const doWashInNew = () => {
+    pushUndo();
+    const s = ensureSession();
+    const o = newOppObj();
+    o.enteredAt = null;            // entry not yet observed
+    o.washIn = Date.now();
+    o.washInLoc = 'outside';
+    o.washInReused = false;
+    s.opps.push(o);
+    obs.activeOppId = o.id;        // the new opportunity becomes active
     saveSessions(); renderSessions();
   };
   const doWashOut = () => {
@@ -2523,9 +2536,9 @@
 
   const updateActionButtons = (act) => {
     const dis = !act;
-    // Wash In stays enabled even with no active opportunity — it can start one (the
-    // pre-entry wash case). Wash Out and Exit still require an active opportunity.
-    $('btnWashIn').disabled = false;
+    // Wash In / Wash Out / Exit act on the active opportunity, so they're disabled with
+    // none. New Wash-In and Misc Wash create their own record, so they stay enabled.
+    $('btnWashIn').disabled = dis;
     $('btnWashOut').disabled = dis;
     $('btnExit').disabled = dis;
   };
@@ -2618,6 +2631,7 @@
   // ----- Wiring -----
   $('btnEnterRoom').addEventListener('click', doEnterRoom);
   $('btnWashIn').addEventListener('click', doWashIn);
+  $('btnWashInNew').addEventListener('click', doWashInNew);
   $('btnWashOut').addEventListener('click', doWashOut);
   $('btnExit').addEventListener('click', doExit);
   $('btnMiscWash').addEventListener('click', doMiscWash);
