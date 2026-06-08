@@ -789,6 +789,9 @@
     border-color: var(--vermillion);
   }
   .obs-btn-primary:hover .obs-btn-eyebrow { color: rgba(239, 230, 210, 0.85); }
+  /* Enter Room is showing the "fill the pending entry" hint — make it pop so the
+     observer notices this tap completes the wash-in-first opportunity. */
+  .obs-btn.is-fill-entry .obs-btn-eyebrow { color: var(--paper); font-weight: 600; }
 
   .obs-bar {
     display: flex;
@@ -1383,9 +1386,26 @@
     }
     .obs-actions .obs-btn-eyebrow { display: none; }   /* labels too long for the rail */
     .obs-actions .obs-btn-label { font-size: 11px; letter-spacing: .06em; line-height: 1.2; }
+    /* …but keep the "Fill entry" hint visible — it's the only cue on a phone that this
+       tap completes a wash-in-first opportunity rather than opening a new one. */
+    .obs-actions .obs-btn.is-fill-entry { gap: 3px; }
+    .obs-actions .obs-btn.is-fill-entry .obs-btn-eyebrow {
+      display: block;
+      font-size: 8px;
+      letter-spacing: .02em;
+      line-height: 1.1;
+    }
 
     .visits-wrap { flex: 1 1 auto; min-width: 0; margin-top: 0; }
     #visitsList { grid-template-columns: 1fr; gap: 10px; }
+
+    /* Undo: a comfortable pill tap target instead of a hairline text link. */
+    #btnUndo {
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      padding: 8px 16px;
+      align-self: flex-start;
+    }
   }
 </style>
 </head>
@@ -2465,6 +2485,7 @@
       obsStatus.textContent = 'No active opportunity';
       obsStatus.classList.remove('is-active');
       enterRoomEyebrow.textContent = '＋ New opportunity';
+      $('btnEnterRoom').classList.remove('is-fill-entry');
       updateActionButtons(null);
       return;
     }
@@ -2476,8 +2497,11 @@
     obsStatus.innerHTML = `Active <span class="pill">Opportunity ${pad(opps.indexOf(act) + 1)}</span>`;
     obsStatus.classList.add('is-active');
     // When the active opportunity was started by a pre-entry Wash In, Enter Room will
-    // fill its entry rather than open a new one — signal that on the button.
-    enterRoomEyebrow.textContent = (act && act.enteredAt == null) ? '↳ Fill entry' : '＋ New opportunity';
+    // fill its entry rather than open a new one — signal that on the button (and keep
+    // the hint visible on phones, where action eyebrows are otherwise hidden).
+    const fillEntry = !!(act && act.enteredAt == null);
+    enterRoomEyebrow.textContent = fillEntry ? '↳ Fill entry' : '＋ New opportunity';
+    $('btnEnterRoom').classList.toggle('is-fill-entry', fillEntry);
     updateActionButtons(act);
   };
 
