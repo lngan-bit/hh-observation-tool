@@ -2446,7 +2446,9 @@
     pushUndo();
     const s = ensureSession();
     if (!s.miscOpps) s.miscOpps = [];
-    s.miscOpps.push({ id: uid('mopp'), at: Date.now(), note: '' });
+    // washOut: optional shorthand — "I saw them leave + wash out but never saw the
+    //   entry." Purely a note for the observer; never enters compliance.
+    s.miscOpps.push({ id: uid('mopp'), at: Date.now(), note: '', washOut: null, washOutLoc: null });
     saveSessions(); renderSessions();
   };
   const findMiscOpp = (id) => {
@@ -2458,6 +2460,26 @@
     pushUndo('moppnote:' + id);
     m.note = value;
     saveSessions();
+  };
+  // Wash-out shorthand on a misc opportunity (not scored — just recorded).
+  const addMiscOppWashOut = (id) => {
+    const m = findMiscOpp(id); if (!m) return;
+    pushUndo();
+    m.washOut = Date.now();
+    m.washOutLoc = m.washOutLoc || 'outside';
+    saveSessions(); renderSessions();
+  };
+  const clearMiscOppWashOut = (id) => {
+    const m = findMiscOpp(id); if (!m) return;
+    pushUndo();
+    m.washOut = null; m.washOutLoc = null;
+    saveSessions(); renderSessions();
+  };
+  const toggleMiscOppWashOutLoc = (id) => {
+    const m = findMiscOpp(id); if (!m || !m.washOut) return;
+    pushUndo();
+    m.washOutLoc = m.washOutLoc === 'inside' ? 'outside' : 'inside';
+    saveSessions(); renderSessions();
   };
   const deleteMiscOpp = (id) => {
     const s = activeSession(); if (!s) return;
@@ -2699,6 +2721,16 @@
       const m = items[i];
       const row = document.createElement('div');
       row.className = 'event-row';
+      // Optional wash-out line: a "+ wash out" button until stamped; then the time with
+      // an inside/outside toggle + clear. Shorthand only — never scored.
+      const wo = m.washOut
+        ? `<span class="ev-time">${fmtClock(m.washOut)}</span>
+           <span class="ev-detail">
+             <button class="toggle-pill" data-act="wo-loc" data-state="${m.washOutLoc === 'inside' ? 'inside' : 'outside'}" type="button">${m.washOutLoc === 'inside' ? 'Inside' : 'Outside'}</button>
+             <button class="ev-clear" data-act="wo-clear" type="button">clear</button>
+           </span>`
+        : `<span class="ev-time is-empty">Not logged</span>
+           <span class="ev-detail"><button class="ev-reuse" data-act="wo-add" type="button">＋ wash out</button></span>`;
       row.innerHTML = `
         <div class="ev-main">
           <span class="ev-label">Opp</span>
@@ -2707,11 +2739,21 @@
             <button class="ev-clear" data-act="del" type="button">delete</button>
           </span>
         </div>
+        <div class="ev-main" data-kind="washOut">
+          <span class="ev-label">Wash Out</span>
+          ${wo}
+        </div>
         <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="What you saw / missed…"
              value="${esc(m.note || '')}" autocomplete="off" spellcheck="true" /></div>`;
       const note = row.querySelector('.ev-note');
       note.addEventListener('input', () => setMiscOppNote(m.id, note.value));
       row.querySelector('[data-act="del"]').addEventListener('click', () => deleteMiscOpp(m.id));
+      const woAdd = row.querySelector('[data-act="wo-add"]');
+      if (woAdd) woAdd.addEventListener('click', () => addMiscOppWashOut(m.id));
+      const woClear = row.querySelector('[data-act="wo-clear"]');
+      if (woClear) woClear.addEventListener('click', () => clearMiscOppWashOut(m.id));
+      const woLoc = row.querySelector('[data-act="wo-loc"]');
+      if (woLoc) woLoc.addEventListener('click', () => toggleMiscOppWashOutLoc(m.id));
       list.appendChild(row);
     }
   };
@@ -2856,7 +2898,7 @@
           q(s.day), q(s.unit), q(s.startTime), q(s.endTime), q(s.sessionNote), 'misc-opp',
           iso(m.at),
           '', '', '',
-          '', '', '',
+          iso(m.washOut), m.washOutLoc || '', '',
           '',
           '',
           q(m.note), '', '', '',
