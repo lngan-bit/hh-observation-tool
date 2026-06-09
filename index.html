@@ -1260,6 +1260,41 @@
   .misc-wrap .event-row { padding-left: 13px; padding-right: 13px; }
   .misc-wrap .event-row:last-child { border-bottom: none; }
 
+  /* ---------- session notes ----------
+     Free-text notes for the whole observation session (not a single opportunity).
+     Pinned to the bottom of the Field Log; saved per session, exported as session_note. */
+  .session-notes {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--ink);
+  }
+  .session-notes-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .session-notes-input {
+    appearance: none;
+    width: 100%;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--ink);
+    padding: 12px 14px;
+    resize: vertical;
+    min-height: 84px;
+    transition: border-color .15s ease;
+  }
+  .session-notes-input::placeholder { color: var(--ink-faint); font-style: italic; }
+  .session-notes-input:focus { outline: none; border-color: var(--vermillion); }
+
   .visits-empty {
     padding: 50px 12px;
     text-align: center;
@@ -1589,6 +1624,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Session-level free-text notes (whole session, not one opportunity). -->
+    <section class="session-notes">
+      <label class="session-notes-label" for="sessNote">Session notes</label>
+      <textarea id="sessNote" class="session-notes-input" rows="3"
+        placeholder="Notes for this whole session — unit conditions, staffing, observation context, anything worth recording…"
+        autocomplete="off" spellcheck="true"></textarea>
+    </section>
 
     <footer class="colophon">
       <div>Local · Persistent · Single-File</div>
@@ -2125,7 +2168,7 @@
   // miscWashes: standalone observed washes not tied to any opportunity — { id, at, loc, note }.
   //   Recorded for the log but excluded from opportunity compliance scoring. Older saved
   //   sessions without this field are treated as having none.
-  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', createdAt: Date.now(), opps: [], miscWashes: [] });
+  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', sessionNote: '', createdAt: Date.now(), opps: [], miscWashes: [] });
   // An opportunity is created on Enter Room; enteredAt is stamped immediately.
   //   washInLoc / washOutLoc: 'inside' | 'outside' (default 'outside' when stamped —
   //   the observer can usually only see washes at the door dispenser, not inside).
@@ -2394,6 +2437,7 @@
   const sessUnitInput = $('sessUnit');
   const sessStartInput = $('sessStart');
   const sessEndInput = $('sessEnd');
+  const sessNoteInput = $('sessNote');
   const enterRoomEyebrow = document.querySelector('#btnEnterRoom .obs-btn-eyebrow');
 
   // Fixed event order shown inside each opportunity card.
@@ -2595,6 +2639,7 @@
     // Don't overwrite a time field while it's being edited (live re-render).
     if (document.activeElement !== sessStartInput) sessStartInput.value = s ? (s.startTime || '') : '';
     if (document.activeElement !== sessEndInput)   sessEndInput.value   = s ? (s.endTime   || '') : '';
+    if (document.activeElement !== sessNoteInput)  sessNoteInput.value  = s ? (s.sessionNote || '') : '';
     // Don't overwrite the min-visit field while it's being edited (live re-render).
     if (document.activeElement !== minVisitInput) minVisitInput.value = obs.minVisitSec;
     renderCompliance(s);
@@ -2655,6 +2700,10 @@
     pushUndo('end');
     const s = ensureSession(); s.endTime = e.target.value; saveSessions();
   });
+  sessNoteInput.addEventListener('input', (e) => {
+    pushUndo('sessnote');
+    const s = ensureSession(); s.sessionNote = e.target.value; saveSessions();
+  });
 
   // ⌘Z / Ctrl-Z undoes the last observation action — but only when not focused in a
   // text field (so the browser's native text undo still works while typing notes) and
@@ -2676,7 +2725,7 @@
     const iso = (e) => e ? new Date(e).toISOString() : '';
     const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const rows = [[
-      'session_day','unit','session_start','session_end','opportunity',
+      'session_day','unit','session_start','session_end','session_note','opportunity',
       'entered_iso',
       'wash_in_iso','wash_in_location','wash_in_reused',
       'wash_out_iso','wash_out_location','wash_out_reused',
@@ -2688,7 +2737,7 @@
       s.opps.forEach((o, i) => {
         const n = o.notes || {};
         rows.push([
-          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), i + 1,
+          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), q(s.sessionNote), i + 1,
           iso(o.enteredAt),
           iso(o.washIn),  o.washInLoc  || '', o.washInReused  ? 'reused' : '',
           iso(o.washOut), o.washOutLoc || '', o.washOutReused ? 'reused' : '',
@@ -2701,7 +2750,7 @@
       // location go in the wash_in columns; the note in wash_in_note. Not scored.
       (s.miscWashes || []).forEach((m) => {
         rows.push([
-          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), 'misc',
+          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), q(s.sessionNote), 'misc',
           '',
           iso(m.at), m.loc || '', '',
           '', '', '',
