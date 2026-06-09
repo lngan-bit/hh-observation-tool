@@ -714,7 +714,9 @@
   /* ---------- observations: actions ---------- */
   .obs-actions {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    /* auto-fit so the row fills with as many equal buttons as fit (≥150px each) and
+       wraps the rest — robust to the button count, no per-breakpoint column rules. */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     padding: 24px 0 18px;
     border-bottom: 1px solid var(--rule);
@@ -792,6 +794,17 @@
   /* Enter Room is showing the "fill the pending entry" hint — make it pop so the
      observer notices this tap completes the wash-in-first opportunity. */
   .obs-btn.is-fill-entry .obs-btn-eyebrow { color: var(--paper); font-weight: 600; }
+
+  /* Misc buttons (Misc Wash, Misc Opp) are secondary — render them shorter than the
+     primary lifecycle buttons. align-self:start keeps them from stretching to the
+     row height when they share a row with the taller buttons. */
+  .obs-btn-misc {
+    min-height: 52px;
+    padding: 10px 14px;
+    align-self: start;
+  }
+  .obs-btn-misc .obs-btn-label { font-size: 12px; letter-spacing: .14em; }
+  .obs-btn-misc .obs-btn-eyebrow { font-size: 8px; letter-spacing: .22em; }
 
   .obs-bar {
     display: flex;
@@ -1257,6 +1270,11 @@
     font-style: italic;
     font-size: 12px;
   }
+  .misc-head .misc-count {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
   .misc-wrap .event-row { padding-left: 13px; padding-right: 13px; }
   .misc-wrap .event-row:last-child { border-bottom: none; }
 
@@ -1318,11 +1336,7 @@
   }
 
   /* observation-specific responsive */
-  @media (max-width: 1100px) {
-    .obs-actions { grid-template-columns: repeat(3, 1fr); }   /* 6 buttons → 2 rows of 3 */
-  }
   @media (max-width: 880px) {
-    .obs-actions { grid-template-columns: repeat(2, 1fr); }   /* → 3 rows of 2 */
     .session-bar { grid-template-columns: 1fr 1fr; }
     .session-switch { grid-column: 1 / -1; justify-content: flex-start; }
   }
@@ -1446,6 +1460,8 @@
       text-align: center;
       gap: 0;
     }
+    /* in the narrow rail, normalize the misc buttons back to the rail button size */
+    .obs-actions .obs-btn-misc { align-self: stretch; min-height: 40px; padding: 8px 6px; }
     .obs-actions .obs-btn-eyebrow { display: none; }   /* labels too long for the rail */
     .obs-actions .obs-btn-label { font-size: 11px; letter-spacing: .06em; line-height: 1.2; }
     /* …but keep the "Fill entry" hint visible — it's the only cue on a phone that this
@@ -1605,9 +1621,13 @@
           <span class="obs-btn-eyebrow">Active opp</span>
           <span class="obs-btn-label">Exit</span>
         </button>
-        <button class="btn obs-btn" id="btnMiscWash" type="button">
+        <button class="btn obs-btn obs-btn-misc" id="btnMiscWash" type="button">
           <span class="obs-btn-eyebrow">No opportunity</span>
           <span class="obs-btn-label">Misc Wash</span>
+        </button>
+        <button class="btn obs-btn obs-btn-misc" id="btnMiscOpp" type="button">
+          <span class="obs-btn-eyebrow">Partial · counted</span>
+          <span class="obs-btn-label">Misc Opp</span>
         </button>
       </div>
 
@@ -1617,9 +1637,15 @@
           No opportunities yet.<br>
           Tap <span class="key">Enter Room</span> when you see someone enter — each entry starts an opportunity.
         </div>
+        <!-- Partial opportunities — observer didn't see the full sequence (missed an
+             entry/wash/exit). Counted for an accurate opportunity tally, but NOT scored. -->
+        <div class="misc-wrap" id="miscOppWrap" style="display:none">
+          <div class="misc-head">Misc opportunities <span class="hint">partial — counted, not scored</span><span class="misc-count">(<span id="miscOppCount">0</span>)</span></div>
+          <div id="miscOppList"></div>
+        </div>
         <!-- Standalone washes not tied to any opportunity; logged but not scored. -->
         <div class="misc-wrap" id="miscWrap" style="display:none">
-          <div class="misc-head">Misc washes <span class="hint">not tied to an opportunity</span></div>
+          <div class="misc-head">Misc washes <span class="hint">not tied to an opportunity</span><span class="misc-count">(<span id="miscWashCount">0</span>)</span></div>
           <div id="miscWashList"></div>
         </div>
       </div>
@@ -2168,7 +2194,9 @@
   // miscWashes: standalone observed washes not tied to any opportunity — { id, at, loc, note }.
   //   Recorded for the log but excluded from opportunity compliance scoring. Older saved
   //   sessions without this field are treated as having none.
-  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', sessionNote: '', createdAt: Date.now(), opps: [], miscWashes: [] });
+  // miscOpps: partial opportunities the observer didn't fully see — { id, at, note }.
+  //   Counted for an accurate opportunity tally but kept OUT of the compliance rate.
+  const newSessionObj = () => ({ id: uid('sess'), day: '', unit: '', startTime: '', endTime: '', sessionNote: '', createdAt: Date.now(), opps: [], miscWashes: [], miscOpps: [] });
   // An opportunity is created on Enter Room; enteredAt is stamped immediately.
   //   washInLoc / washOutLoc: 'inside' | 'outside' (default 'outside' when stamped —
   //   the observer can usually only see washes at the door dispenser, not inside).
@@ -2411,6 +2439,34 @@
     saveSessions(); renderSessions();
   };
 
+  // ----- Misc opportunities (partial — not fully observed) -----
+  // A counted-but-unscored opportunity for when the observer missed part of the
+  // sequence (entry/wash/exit). Kept out of the compliance rate; carries a note.
+  const doMiscOpp = () => {
+    pushUndo();
+    const s = ensureSession();
+    if (!s.miscOpps) s.miscOpps = [];
+    s.miscOpps.push({ id: uid('mopp'), at: Date.now(), note: '' });
+    saveSessions(); renderSessions();
+  };
+  const findMiscOpp = (id) => {
+    const s = activeSession();
+    return s ? (s.miscOpps || []).find(m => m.id === id) : null;
+  };
+  const setMiscOppNote = (id, value) => {
+    const m = findMiscOpp(id); if (!m) return;
+    pushUndo('moppnote:' + id);
+    m.note = value;
+    saveSessions();
+  };
+  const deleteMiscOpp = (id) => {
+    const s = activeSession(); if (!s) return;
+    if (!confirm('Delete this misc opportunity?')) return;
+    pushUndo();
+    s.miscOpps = (s.miscOpps || []).filter(m => m.id !== id);
+    saveSessions(); renderSessions();
+  };
+
   // ----- Session management -----
   const switchSession = (id) => {
     obs.activeSessionId = id;
@@ -2600,6 +2656,7 @@
     const wrap = $('miscWrap');
     const list = $('miscWashList');
     const washes = s ? (s.miscWashes || []) : [];
+    $('miscWashCount').textContent = washes.length;
     if (!washes.length) { wrap.style.display = 'none'; list.innerHTML = ''; return; }
     wrap.style.display = '';
     list.innerHTML = '';
@@ -2628,6 +2685,37 @@
     }
   };
 
+  // Render the partial "misc opportunities" for the active session (newest first).
+  // Each is just a timestamp + free-text note + delete; counted, never scored.
+  const renderMiscOpps = (s) => {
+    const wrap = $('miscOppWrap');
+    const list = $('miscOppList');
+    const items = s ? (s.miscOpps || []) : [];
+    $('miscOppCount').textContent = items.length;
+    if (!items.length) { wrap.style.display = 'none'; list.innerHTML = ''; return; }
+    wrap.style.display = '';
+    list.innerHTML = '';
+    for (let i = items.length - 1; i >= 0; i--) {
+      const m = items[i];
+      const row = document.createElement('div');
+      row.className = 'event-row';
+      row.innerHTML = `
+        <div class="ev-main">
+          <span class="ev-label">Opp</span>
+          <span class="ev-time">${fmtClock(m.at)}</span>
+          <span class="ev-detail">
+            <button class="ev-clear" data-act="del" type="button">delete</button>
+          </span>
+        </div>
+        <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="What you saw / missed…"
+             value="${esc(m.note || '')}" autocomplete="off" spellcheck="true" /></div>`;
+      const note = row.querySelector('.ev-note');
+      note.addEventListener('input', () => setMiscOppNote(m.id, note.value));
+      row.querySelector('[data-act="del"]').addEventListener('click', () => deleteMiscOpp(m.id));
+      list.appendChild(row);
+    }
+  };
+
   const renderSessions = () => {
     refreshSessionSelect();
     refreshStaffTagList();
@@ -2643,6 +2731,7 @@
     // Don't overwrite the min-visit field while it's being edited (live re-render).
     if (document.activeElement !== minVisitInput) minVisitInput.value = obs.minVisitSec;
     renderCompliance(s);
+    renderMiscOpps(s);
     renderMisc(s);
     updateUndoButton();
 
@@ -2680,6 +2769,7 @@
   $('btnWashOut').addEventListener('click', doWashOut);
   $('btnExit').addEventListener('click', doExit);
   $('btnMiscWash').addEventListener('click', doMiscWash);
+  $('btnMiscOpp').addEventListener('click', doMiscOpp);
   $('btnNewSession').addEventListener('click', doNewSession);
   $('btnUndo').addEventListener('click', undo);
   minVisitInput.addEventListener('input', (e) => setMinVisit(e.target.value));
@@ -2757,6 +2847,19 @@
           '',
           '',
           '', q(m.note), '', '',
+        ]);
+      });
+      // Misc (partial) opportunities: one row each, opportunity = "misc-opp". The log
+      // time goes in entered_iso (best anchor) and the note in entry_note. Not scored.
+      (s.miscOpps || []).forEach((m) => {
+        rows.push([
+          q(s.day), q(s.unit), q(s.startTime), q(s.endTime), q(s.sessionNote), 'misc-opp',
+          iso(m.at),
+          '', '', '',
+          '', '', '',
+          '',
+          '',
+          q(m.note), '', '', '',
         ]);
       });
     });
