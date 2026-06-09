@@ -1277,6 +1277,13 @@
   }
   .misc-wrap .event-row { padding-left: 13px; padding-right: 13px; }
   .misc-wrap .event-row:last-child { border-bottom: none; }
+  /* "No wash" — a deliberate observation (they didn't wash), not a faint placeholder */
+  .ev-time.wo-nowash {
+    color: var(--ochre);
+    font-style: normal;
+    font-size: 14px;
+    letter-spacing: .04em;
+  }
 
   /* ---------- session notes ----------
      Free-text notes for the whole observation session (not a single opportunity).
@@ -2446,9 +2453,11 @@
     pushUndo();
     const s = ensureSession();
     if (!s.miscOpps) s.miscOpps = [];
-    // washOut: optional shorthand — "I saw them leave + wash out but never saw the
-    //   entry." Purely a note for the observer; never enters compliance.
-    s.miscOpps.push({ id: uid('mopp'), at: Date.now(), note: '', washOut: null, washOutLoc: null });
+    // Exit-wash observation is a TRISTATE shorthand (never scored):
+    //   washOut set         → saw them wash on the way out (time + location)
+    //   noWash === true      → saw them NOT wash on the way out
+    //   neither              → didn't see (default)
+    s.miscOpps.push({ id: uid('mopp'), at: Date.now(), note: '', washOut: null, washOutLoc: null, noWash: false });
     saveSessions(); renderSessions();
   };
   const findMiscOpp = (id) => {
@@ -2461,18 +2470,26 @@
     m.note = value;
     saveSessions();
   };
-  // Wash-out shorthand on a misc opportunity (not scored — just recorded).
-  const addMiscOppWashOut = (id) => {
+  // Exit-wash shorthand on a misc opportunity (tristate; not scored — just recorded).
+  const addMiscOppWashOut = (id) => {            // "saw them wash out"
     const m = findMiscOpp(id); if (!m) return;
     pushUndo();
     m.washOut = Date.now();
     m.washOutLoc = m.washOutLoc || 'outside';
+    m.noWash = false;
     saveSessions(); renderSessions();
   };
-  const clearMiscOppWashOut = (id) => {
+  const setMiscOppNoWash = (id) => {             // "saw them NOT wash out"
     const m = findMiscOpp(id); if (!m) return;
     pushUndo();
+    m.noWash = true;
     m.washOut = null; m.washOutLoc = null;
+    saveSessions(); renderSessions();
+  };
+  const clearMiscOppWashOut = (id) => {          // back to "didn't see"
+    const m = findMiscOpp(id); if (!m) return;
+    pushUndo();
+    m.washOut = null; m.washOutLoc = null; m.noWash = false;
     saveSessions(); renderSessions();
   };
   const toggleMiscOppWashOutLoc = (id) => {
@@ -2721,16 +2738,27 @@
       const m = items[i];
       const row = document.createElement('div');
       row.className = 'event-row';
-      // Optional wash-out line: a "+ wash out" button until stamped; then the time with
-      // an inside/outside toggle + clear. Shorthand only — never scored.
-      const wo = m.washOut
-        ? `<span class="ev-time">${fmtClock(m.washOut)}</span>
+      // Exit-wash line — tristate shorthand (never scored):
+      //   washed: time + inside/outside toggle + clear
+      //   no wash: a "No wash" marker + clear
+      //   unobserved: offer both "＋ wash out" and "no wash" choices
+      let wo;
+      if (m.washOut) {
+        wo = `<span class="ev-time">${fmtClock(m.washOut)}</span>
            <span class="ev-detail">
              <button class="toggle-pill" data-act="wo-loc" data-state="${m.washOutLoc === 'inside' ? 'inside' : 'outside'}" type="button">${m.washOutLoc === 'inside' ? 'Inside' : 'Outside'}</button>
              <button class="ev-clear" data-act="wo-clear" type="button">clear</button>
-           </span>`
-        : `<span class="ev-time is-empty">Not logged</span>
-           <span class="ev-detail"><button class="ev-reuse" data-act="wo-add" type="button">＋ wash out</button></span>`;
+           </span>`;
+      } else if (m.noWash) {
+        wo = `<span class="ev-time wo-nowash">No wash</span>
+           <span class="ev-detail"><button class="ev-clear" data-act="wo-clear" type="button">clear</button></span>`;
+      } else {
+        wo = `<span class="ev-time is-empty">Not seen</span>
+           <span class="ev-detail">
+             <button class="ev-reuse" data-act="wo-add" type="button">＋ wash out</button>
+             <button class="ev-clear" data-act="wo-none" type="button">no wash</button>
+           </span>`;
+      }
       row.innerHTML = `
         <div class="ev-main">
           <span class="ev-label">Opp</span>
@@ -2750,6 +2778,8 @@
       row.querySelector('[data-act="del"]').addEventListener('click', () => deleteMiscOpp(m.id));
       const woAdd = row.querySelector('[data-act="wo-add"]');
       if (woAdd) woAdd.addEventListener('click', () => addMiscOppWashOut(m.id));
+      const woNone = row.querySelector('[data-act="wo-none"]');
+      if (woNone) woNone.addEventListener('click', () => setMiscOppNoWash(m.id));
       const woClear = row.querySelector('[data-act="wo-clear"]');
       if (woClear) woClear.addEventListener('click', () => clearMiscOppWashOut(m.id));
       const woLoc = row.querySelector('[data-act="wo-loc"]');
@@ -2898,10 +2928,12 @@
           q(s.day), q(s.unit), q(s.startTime), q(s.endTime), q(s.sessionNote), 'misc-opp',
           iso(m.at),
           '', '', '',
+          // exit-wash tristate: a time = saw a wash; "no-wash" in wash_out_note = saw
+          // no wash; both empty = didn't see. Never scored.
           iso(m.washOut), m.washOutLoc || '', '',
           '',
           '',
-          q(m.note), '', '', '',
+          q(m.note), '', m.noWash ? 'no-wash' : '', '',
         ]);
       });
     });
