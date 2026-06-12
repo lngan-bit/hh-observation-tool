@@ -1247,36 +1247,11 @@
   /* ---------- misc washes ----------
      Standalone observed washes not tied to any opportunity (e.g. a wash seen at a
      hallway dispenser). They are recorded for the observer's log but do NOT enter
-     opportunity compliance scoring. Shown in their own box under the opportunities. */
-  .misc-wrap { margin-top: 18px; border: 1px solid var(--rule); }
-  .misc-head {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    flex-wrap: wrap;
-    font-family: var(--mono);
-    font-size: 9px;
-    letter-spacing: .28em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    padding: 10px 13px;
-    border-bottom: 1px solid var(--rule-soft);
-    background: var(--paper);
-  }
-  .misc-head .hint {
-    text-transform: none;
-    letter-spacing: 0;
-    font-family: var(--serif);
-    font-style: italic;
-    font-size: 12px;
-  }
-  .misc-head .misc-count {
-    margin-left: auto;
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-soft);
-  }
-  .misc-wrap .event-row { padding-left: 13px; padding-right: 13px; }
-  .misc-wrap .event-row:last-child { border-bottom: none; }
+     opportunity compliance scoring. They render as cards in the same time-ordered feed
+     as opportunities, distinguished by a dashed border and a "not scored" tag. */
+  .visit-misc { border-style: dashed; }
+  .visit-misc .visit-num .small { color: var(--ink-faint); }
+  .visit-misc .visit-score { color: var(--ink-faint); font-style: normal; }
   /* "No wash" — a deliberate observation (they didn't wash), not a faint placeholder */
   .ev-time.wo-nowash {
     color: var(--ochre);
@@ -1643,17 +1618,6 @@
         <div class="visits-empty" id="visitsEmpty">
           No opportunities yet.<br>
           Tap <span class="key">Enter Room</span> when you see someone enter — each entry starts an opportunity.
-        </div>
-        <!-- Partial opportunities — observer didn't see the full sequence (missed an
-             entry/wash/exit). Counted for an accurate opportunity tally, but NOT scored. -->
-        <div class="misc-wrap" id="miscOppWrap" style="display:none">
-          <div class="misc-head">Misc opportunities <span class="hint">partial — counted, not scored</span><span class="misc-count">(<span id="miscOppCount">0</span>)</span></div>
-          <div id="miscOppList"></div>
-        </div>
-        <!-- Standalone washes not tied to any opportunity; logged but not scored. -->
-        <div class="misc-wrap" id="miscWrap" style="display:none">
-          <div class="misc-head">Misc washes <span class="hint">not tied to an opportunity</span><span class="misc-count">(<span id="miscWashCount">0</span>)</span></div>
-          <div id="miscWashList"></div>
         </div>
       </div>
     </div>
@@ -2691,101 +2655,102 @@
 
   // Render the standalone misc washes for the active session (newest first). Hidden
   // entirely when there are none, so it never clutters a normal opportunity-only log.
-  const renderMisc = (s) => {
-    const wrap = $('miscWrap');
-    const list = $('miscWashList');
-    const washes = s ? (s.miscWashes || []) : [];
-    $('miscWashCount').textContent = washes.length;
-    if (!washes.length) { wrap.style.display = 'none'; list.innerHTML = ''; return; }
-    wrap.style.display = '';
-    list.innerHTML = '';
-    for (let i = washes.length - 1; i >= 0; i--) {
-      const m = washes[i];
-      const loc = m.loc === 'inside' ? 'inside' : 'outside';
-      const row = document.createElement('div');
-      row.className = 'event-row';
-      row.dataset.kind = 'washIn';   // reuse the wash row's vermillion accent
-      row.innerHTML = `
-        <div class="ev-main">
-          <span class="ev-label">Wash</span>
-          <span class="ev-time">${fmtClock(m.at)}</span>
-          <span class="ev-detail">
-            <button class="toggle-pill" data-act="loc" data-state="${loc}" type="button">${loc === 'inside' ? 'Inside' : 'Outside'}</button>
-            <button class="ev-clear" data-act="del" type="button">delete</button>
-          </span>
+  // A misc wash as a compact card for the unified feed — a standalone wash with no
+  // opportunity, never scored. Same card shape as an opportunity so it sits in the grid.
+  const renderMiscWashCard = (m) => {
+    const article = document.createElement('article');
+    article.className = 'visit visit-misc';
+    article.dataset.id = m.id;
+    const loc = m.loc === 'inside' ? 'inside' : 'outside';
+    article.innerHTML = `
+      <header class="visit-head">
+        <div class="visit-num">Misc wash<span class="small">no opp</span></div>
+        <div class="visit-meta"><span class="visit-score">not scored</span></div>
+        <button class="visit-delete" data-act="del" title="Delete misc wash" type="button">×</button>
+      </header>
+      <div class="visit-events">
+        <div class="events-list">
+          <div class="event-row" data-kind="washIn">
+            <div class="ev-main">
+              <span class="ev-label">Wash</span>
+              <span class="ev-time">${fmtClock(m.at)}</span>
+              <span class="ev-detail">
+                <button class="toggle-pill" data-act="loc" data-state="${loc}" type="button">${loc === 'inside' ? 'Inside' : 'Outside'}</button>
+              </span>
+            </div>
+            <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="Note…"
+                 value="${esc(m.note || '')}" autocomplete="off" spellcheck="true" /></div>
+          </div>
         </div>
-        <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="Note…"
-             value="${esc(m.note || '')}" autocomplete="off" spellcheck="false" /></div>`;
-      const note = row.querySelector('.ev-note');
-      note.addEventListener('input', () => setMiscNote(m.id, note.value));
-      row.querySelector('[data-act="loc"]').addEventListener('click', () => toggleMiscLoc(m.id));
-      row.querySelector('[data-act="del"]').addEventListener('click', () => deleteMisc(m.id));
-      list.appendChild(row);
-    }
+      </div>`;
+    const note = article.querySelector('.ev-note');
+    note.addEventListener('input', () => setMiscNote(m.id, note.value));
+    article.querySelector('[data-act="loc"]').addEventListener('click', () => toggleMiscLoc(m.id));
+    article.querySelector('[data-act="del"]').addEventListener('click', () => deleteMisc(m.id));
+    return article;
   };
 
-  // Render the partial "misc opportunities" for the active session (newest first).
-  // Each is just a timestamp + free-text note + delete; counted, never scored.
-  const renderMiscOpps = (s) => {
-    const wrap = $('miscOppWrap');
-    const list = $('miscOppList');
-    const items = s ? (s.miscOpps || []) : [];
-    $('miscOppCount').textContent = items.length;
-    if (!items.length) { wrap.style.display = 'none'; list.innerHTML = ''; return; }
-    wrap.style.display = '';
-    list.innerHTML = '';
-    for (let i = items.length - 1; i >= 0; i--) {
-      const m = items[i];
-      const row = document.createElement('div');
-      row.className = 'event-row';
-      // Exit-wash line — tristate shorthand (never scored):
-      //   washed: time + inside/outside toggle + clear
-      //   no wash: a "No wash" marker + clear
-      //   unobserved: offer both "＋ wash out" and "no wash" choices
-      let wo;
-      if (m.washOut) {
-        wo = `<span class="ev-time">${fmtClock(m.washOut)}</span>
-           <span class="ev-detail">
-             <button class="toggle-pill" data-act="wo-loc" data-state="${m.washOutLoc === 'inside' ? 'inside' : 'outside'}" type="button">${m.washOutLoc === 'inside' ? 'Inside' : 'Outside'}</button>
-             <button class="ev-clear" data-act="wo-clear" type="button">clear</button>
-           </span>`;
-      } else if (m.noWash) {
-        wo = `<span class="ev-time wo-nowash">No wash</span>
-           <span class="ev-detail"><button class="ev-clear" data-act="wo-clear" type="button">clear</button></span>`;
-      } else {
-        wo = `<span class="ev-time is-empty">Not seen</span>
-           <span class="ev-detail">
-             <button class="ev-reuse" data-act="wo-add" type="button">＋ wash out</button>
-             <button class="ev-clear" data-act="wo-none" type="button">no wash</button>
-           </span>`;
-      }
-      row.innerHTML = `
-        <div class="ev-main">
-          <span class="ev-label">Opp</span>
-          <span class="ev-time">${fmtClock(m.at)}</span>
-          <span class="ev-detail">
-            <button class="ev-clear" data-act="del" type="button">delete</button>
-          </span>
-        </div>
-        <div class="ev-main" data-kind="washOut">
-          <span class="ev-label">Wash Out</span>
-          ${wo}
-        </div>
-        <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="What you saw / missed…"
-             value="${esc(m.note || '')}" autocomplete="off" spellcheck="true" /></div>`;
-      const note = row.querySelector('.ev-note');
-      note.addEventListener('input', () => setMiscOppNote(m.id, note.value));
-      row.querySelector('[data-act="del"]').addEventListener('click', () => deleteMiscOpp(m.id));
-      const woAdd = row.querySelector('[data-act="wo-add"]');
-      if (woAdd) woAdd.addEventListener('click', () => addMiscOppWashOut(m.id));
-      const woNone = row.querySelector('[data-act="wo-none"]');
-      if (woNone) woNone.addEventListener('click', () => setMiscOppNoWash(m.id));
-      const woClear = row.querySelector('[data-act="wo-clear"]');
-      if (woClear) woClear.addEventListener('click', () => clearMiscOppWashOut(m.id));
-      const woLoc = row.querySelector('[data-act="wo-loc"]');
-      if (woLoc) woLoc.addEventListener('click', () => toggleMiscOppWashOutLoc(m.id));
-      list.appendChild(row);
+  // A misc (partial) opportunity as a compact card for the unified feed — counted for
+  // the tally but never scored; carries the tristate exit-wash shorthand.
+  const renderMiscOppCard = (m) => {
+    const article = document.createElement('article');
+    article.className = 'visit visit-misc';
+    article.dataset.id = m.id;
+    // Exit-wash — tristate shorthand (never scored): washed (time + toggle + clear),
+    // no wash (marker + clear), or unobserved (offer "＋ wash out" / "no wash").
+    let wo;
+    if (m.washOut) {
+      wo = `<span class="ev-time">${fmtClock(m.washOut)}</span>
+         <span class="ev-detail">
+           <button class="toggle-pill" data-act="wo-loc" data-state="${m.washOutLoc === 'inside' ? 'inside' : 'outside'}" type="button">${m.washOutLoc === 'inside' ? 'Inside' : 'Outside'}</button>
+           <button class="ev-clear" data-act="wo-clear" type="button">clear</button>
+         </span>`;
+    } else if (m.noWash) {
+      wo = `<span class="ev-time wo-nowash">No wash</span>
+         <span class="ev-detail"><button class="ev-clear" data-act="wo-clear" type="button">clear</button></span>`;
+    } else {
+      wo = `<span class="ev-time is-empty">Not seen</span>
+         <span class="ev-detail">
+           <button class="ev-reuse" data-act="wo-add" type="button">＋ wash out</button>
+           <button class="ev-clear" data-act="wo-none" type="button">no wash</button>
+         </span>`;
     }
+    article.innerHTML = `
+      <header class="visit-head">
+        <div class="visit-num">Misc opp<span class="small">partial</span></div>
+        <div class="visit-meta"><span class="visit-score">not scored</span></div>
+        <button class="visit-delete" data-act="del" title="Delete misc opportunity" type="button">×</button>
+      </header>
+      <div class="visit-events">
+        <div class="events-list">
+          <div class="event-row">
+            <div class="ev-main">
+              <span class="ev-label">Logged</span>
+              <span class="ev-time">${fmtClock(m.at)}</span>
+            </div>
+          </div>
+          <div class="event-row" data-kind="washOut">
+            <div class="ev-main">
+              <span class="ev-label">Wash Out</span>
+              ${wo}
+            </div>
+            <div class="ev-note-wrap"><input class="ev-note" type="text" placeholder="What you saw / missed…"
+                 value="${esc(m.note || '')}" autocomplete="off" spellcheck="true" /></div>
+          </div>
+        </div>
+      </div>`;
+    const note = article.querySelector('.ev-note');
+    note.addEventListener('input', () => setMiscOppNote(m.id, note.value));
+    article.querySelector('[data-act="del"]').addEventListener('click', () => deleteMiscOpp(m.id));
+    const woAdd = article.querySelector('[data-act="wo-add"]');
+    if (woAdd) woAdd.addEventListener('click', () => addMiscOppWashOut(m.id));
+    const woNone = article.querySelector('[data-act="wo-none"]');
+    if (woNone) woNone.addEventListener('click', () => setMiscOppNoWash(m.id));
+    const woClear = article.querySelector('[data-act="wo-clear"]');
+    if (woClear) woClear.addEventListener('click', () => clearMiscOppWashOut(m.id));
+    const woLoc = article.querySelector('[data-act="wo-loc"]');
+    if (woLoc) woLoc.addEventListener('click', () => toggleMiscOppWashOutLoc(m.id));
+    return article;
   };
 
   const renderSessions = () => {
@@ -2803,28 +2768,39 @@
     // Don't overwrite the min-visit field while it's being edited (live re-render).
     if (document.activeElement !== minVisitInput) minVisitInput.value = obs.minVisitSec;
     renderCompliance(s);
-    renderMiscOpps(s);
-    renderMisc(s);
     updateUndoButton();
 
     visitsList.innerHTML = '';
     const opps = s ? s.opps : [];
-    if (opps.length === 0) {
+    const act = activeOpp();
+
+    // One time-ordered feed: opportunities + misc opportunities + misc washes, newest
+    // first. Opportunities keep their stable creation number (their index in s.opps);
+    // misc items are unnumbered. An opportunity's feed time is its entry (falling back
+    // to wash-in / wash-out / exit if entry isn't stamped yet); misc items use their
+    // logged time. Misc items don't affect the active-opportunity status or scoring.
+    const oppTime = (o) => o.enteredAt || o.washIn || o.washOut || o.exit || 0;
+    const feed = [];
+    opps.forEach((o, idx) => feed.push({ t: oppTime(o), el: () => renderOpp(o, idx, !!(act && o.id === act.id)) }));
+    (s ? (s.miscOpps   || []) : []).forEach((m) => feed.push({ t: m.at || 0, el: () => renderMiscOppCard(m) }));
+    (s ? (s.miscWashes || []) : []).forEach((m) => feed.push({ t: m.at || 0, el: () => renderMiscWashCard(m) }));
+    feed.sort((a, b) => b.t - a.t);
+
+    if (feed.length === 0) {
       visitsEmpty.style.display = '';
+    } else {
+      visitsEmpty.style.display = 'none';
+      feed.forEach((item) => visitsList.appendChild(item.el()));
+    }
+
+    // Status + action buttons track the active opportunity (misc items don't affect them).
+    if (act) {
+      obsStatus.innerHTML = `Active <span class="pill">Opportunity ${pad(opps.indexOf(act) + 1)}</span>`;
+      obsStatus.classList.add('is-active');
+    } else {
       obsStatus.textContent = 'No active opportunity';
       obsStatus.classList.remove('is-active');
-      enterRoomEyebrow.textContent = '＋ New opportunity';
-      $('btnEnterRoom').classList.remove('is-fill-entry');
-      updateActionButtons(null);
-      return;
     }
-    visitsEmpty.style.display = 'none';
-    const act = activeOpp();
-    for (let i = opps.length - 1; i >= 0; i--) {  // newest first
-      visitsList.appendChild(renderOpp(opps[i], i, act && opps[i].id === act.id));
-    }
-    obsStatus.innerHTML = `Active <span class="pill">Opportunity ${pad(opps.indexOf(act) + 1)}</span>`;
-    obsStatus.classList.add('is-active');
     // When the active opportunity was started by a pre-entry Wash In, Enter Room will
     // fill its entry rather than open a new one — signal that on the button (and keep
     // the hint visible on phones, where action eyebrows are otherwise hidden).
